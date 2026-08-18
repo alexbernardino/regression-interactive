@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useReducer } from "react";
+import { useMemo, useReducer, useState, type ReactNode } from "react";
 
 type Experiment = {
   xMin: number;
@@ -291,6 +291,46 @@ function SliderField({
         <span>{max}</span>
       </span>
     </label>
+  );
+}
+
+function ControlSection({
+  number,
+  title,
+  id,
+  open,
+  onOpen,
+  children,
+}: {
+  number: string;
+  title: string;
+  id: string;
+  open: boolean;
+  onOpen: () => void;
+  children: ReactNode;
+}) {
+  const heading = (
+    <>
+      <span>{number}</span> {title}
+    </>
+  );
+
+  return (
+    <section className={`control-section${open ? " is-open" : ""}`}>
+      <div className="desktop-section-heading">{heading}</div>
+      <button
+        className="mobile-section-toggle"
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={onOpen}
+      >
+        {heading}
+      </button>
+      <div id={id} className="control-section-body">
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -706,6 +746,10 @@ export default function Home() {
     undefined,
     createInitialLabState,
   );
+  const [mobileView, setMobileView] = useState<"data" | "parameters">("data");
+  const [mobileControlSection, setMobileControlSection] = useState<
+    "sampling" | "truth" | "outliers" | "regularization"
+  >("sampling");
   const error = validateExperiment(config);
 
   const setValue = (key: keyof Experiment) => (value: number) =>
@@ -748,6 +792,99 @@ export default function Home() {
       </header>
 
       <section className="lab" id="experiment">
+        <section
+          className="mobile-visualization"
+          aria-label="Live regression visualization"
+        >
+          <div className="mobile-stage-actions">
+            <div className="mobile-view-tabs" role="tablist" aria-label="Plot view">
+              <button
+                id="mobile-data-tab"
+                type="button"
+                role="tab"
+                aria-selected={mobileView === "data"}
+                aria-controls="mobile-plot-panel"
+                onClick={() => setMobileView("data")}
+              >
+                Data view
+              </button>
+              <button
+                id="mobile-parameters-tab"
+                type="button"
+                role="tab"
+                aria-selected={mobileView === "parameters"}
+                aria-controls="mobile-plot-panel"
+                onClick={() => setMobileView("parameters")}
+              >
+                Parameter space
+              </button>
+            </div>
+            <button
+              className="mobile-resample"
+              type="button"
+              onClick={resample}
+              disabled={Boolean(error)}
+              aria-label="Resample data"
+              title="Resample data"
+            >
+              ↻
+            </button>
+          </div>
+
+          <div
+            className={`mobile-plot-frame mobile-${mobileView}-view`}
+            id="mobile-plot-panel"
+            role="tabpanel"
+            aria-labelledby={
+              mobileView === "data"
+                ? "mobile-data-tab"
+                : "mobile-parameters-tab"
+            }
+          >
+            {mobileView === "data" ? (
+              <RegressionPlot config={result.config} result={result} />
+            ) : (
+              <ParameterPlot result={result} />
+            )}
+          </div>
+
+          <div className="mobile-plot-caption" aria-live="polite">
+            {mobileView === "data" ? (
+              <div className="legend" aria-label="Data plot legend">
+                <span><i className="legend-line truth" />Truth</span>
+                <span><i className="legend-line fit" />Fit</span>
+                <span><i className="legend-dot sample" />Sample</span>
+                <span><i className="legend-dot outlier" />Outlier</span>
+              </div>
+            ) : (
+              <div className="parameter-legend" aria-label="Parameter plot legend">
+                <span><i className="legend-dot parameter-truth" />Truth</span>
+                <span><i className="legend-dot parameter-estimate" />Estimate</span>
+                <span>68% / 95% covariance</span>
+              </div>
+            )}
+          </div>
+
+          <div className="mobile-metrics" aria-label="Live regression metrics">
+            <div>
+              <span>Slope m̂</span>
+              <strong>{round(result.fittedSlope)}</strong>
+            </div>
+            <div>
+              <span>Intercept b̂</span>
+              <strong>{round(result.fittedIntercept)}</strong>
+            </div>
+            <div>
+              <span>RMSE</span>
+              <strong>{round(result.rmse)}</strong>
+            </div>
+            <div>
+              <span>R²</span>
+              <strong>{round(result.r2)}</strong>
+            </div>
+          </div>
+        </section>
+
         <aside className="controls">
           <div className="controls-heading">
             <div>
@@ -762,124 +899,136 @@ export default function Home() {
             </div>
           </div>
 
-          <fieldset>
-            <legend>
-              <span>01</span> Sampling window
-            </legend>
-            <div className="field-grid">
-              <NumberField
-                label="x minimum"
-                value={config.xMin}
-                step={0.5}
-                onChange={setValue("xMin")}
+          <ControlSection
+            number="01"
+            title="Sampling window"
+            id="sampling-controls"
+            open={mobileControlSection === "sampling"}
+            onOpen={() => setMobileControlSection("sampling")}
+          >
+              <div className="field-grid">
+                <NumberField
+                  label="x minimum"
+                  value={config.xMin}
+                  step={0.5}
+                  onChange={setValue("xMin")}
+                />
+                <NumberField
+                  label="x maximum"
+                  value={config.xMax}
+                  step={0.5}
+                  onChange={setValue("xMax")}
+                />
+              </div>
+              <SliderField
+                label="Regular samples"
+                value={config.samples}
+                min={2}
+                max={500}
+                onChange={setValue("samples")}
               />
-              <NumberField
-                label="x maximum"
-                value={config.xMax}
-                step={0.5}
-                onChange={setValue("xMax")}
-              />
-            </div>
-            <SliderField
-              label="Regular samples"
-              value={config.samples}
-              min={2}
-              max={500}
-              onChange={setValue("samples")}
-            />
-          </fieldset>
+          </ControlSection>
 
-          <fieldset>
-            <legend>
-              <span>02</span> Ground truth
-            </legend>
-            <SliderField
-              label="Slope"
-              hint="m"
-              value={config.slope}
-              min={-10}
-              max={10}
-              step={0.1}
-              onChange={setValue("slope")}
-            />
-            <SliderField
-              label="Intercept"
-              hint="b"
-              value={config.intercept}
-              min={-20}
-              max={20}
-              step={0.5}
-              onChange={setValue("intercept")}
-            />
-            <SliderField
-              label="Noise variance"
-              hint="σ²"
-              value={config.noiseVariance}
-              step={0.1}
-              min={0}
-              max={25}
-              onChange={setValue("noiseVariance")}
-            />
-          </fieldset>
-
-          <fieldset>
-            <legend>
-              <span>03</span> Outliers
-            </legend>
-            <div className="field-grid">
-              <NumberField
-                label="y minimum"
-                value={config.outlierMin}
-                step={0.5}
-                onChange={setValue("outlierMin")}
+          <ControlSection
+            number="02"
+            title="Ground truth"
+            id="truth-controls"
+            open={mobileControlSection === "truth"}
+            onOpen={() => setMobileControlSection("truth")}
+          >
+              <SliderField
+                label="Slope"
+                hint="m"
+                value={config.slope}
+                min={-10}
+                max={10}
+                step={0.1}
+                onChange={setValue("slope")}
               />
-              <NumberField
-                label="y maximum"
-                value={config.outlierMax}
+              <SliderField
+                label="Intercept"
+                hint="b"
+                value={config.intercept}
+                min={-20}
+                max={20}
                 step={0.5}
-                onChange={setValue("outlierMax")}
+                onChange={setValue("intercept")}
               />
-            </div>
-            <SliderField
-              label="Number of outliers"
-              value={config.outliers}
-              min={0}
-              max={100}
-              onChange={setValue("outliers")}
-            />
-            <p className="field-note">
-              Outlier x values use the sampling window; their y values are
-              uniform in the range above.
-            </p>
-          </fieldset>
+              <SliderField
+                label="Noise variance"
+                hint="σ²"
+                value={config.noiseVariance}
+                step={0.1}
+                min={0}
+                max={25}
+                onChange={setValue("noiseVariance")}
+              />
+          </ControlSection>
 
-          <fieldset>
-            <legend>
-              <span>04</span> Regularization
-            </legend>
-            <SliderField
-              label="L1 strength"
-              hint="λ₁"
-              value={config.l1}
-              min={0}
-              max={5}
-              step={0.05}
-              onChange={setValue("l1")}
-            />
-            <SliderField
-              label="L2 strength"
-              hint="λ₂"
-              value={config.l2}
-              min={0}
-              max={5}
-              step={0.05}
-              onChange={setValue("l2")}
-            />
-            <p className="field-note regularization-note">
-              ½ mean squared error + λ₁|m| + ½λ₂m². The intercept is not
-              penalized.
-            </p>
-          </fieldset>
+          <ControlSection
+            number="03"
+            title="Outliers"
+            id="outlier-controls"
+            open={mobileControlSection === "outliers"}
+            onOpen={() => setMobileControlSection("outliers")}
+          >
+              <div className="field-grid">
+                <NumberField
+                  label="y minimum"
+                  value={config.outlierMin}
+                  step={0.5}
+                  onChange={setValue("outlierMin")}
+                />
+                <NumberField
+                  label="y maximum"
+                  value={config.outlierMax}
+                  step={0.5}
+                  onChange={setValue("outlierMax")}
+                />
+              </div>
+              <SliderField
+                label="Number of outliers"
+                value={config.outliers}
+                min={0}
+                max={100}
+                onChange={setValue("outliers")}
+              />
+              <p className="field-note">
+                Outlier x values use the sampling window; their y values are
+                uniform in the range above.
+              </p>
+          </ControlSection>
+
+          <ControlSection
+            number="04"
+            title="Regularization"
+            id="regularization-controls"
+            open={mobileControlSection === "regularization"}
+            onOpen={() => setMobileControlSection("regularization")}
+          >
+              <SliderField
+                label="L1 strength"
+                hint="λ₁"
+                value={config.l1}
+                min={0}
+                max={5}
+                step={0.05}
+                onChange={setValue("l1")}
+              />
+              <SliderField
+                label="L2 strength"
+                hint="λ₂"
+                value={config.l2}
+                min={0}
+                max={5}
+                step={0.05}
+                onChange={setValue("l2")}
+              />
+              <p className="field-note regularization-note">
+                ½ mean squared error + λ₁|m| + ½λ₂m². The intercept is not
+                penalized.
+              </p>
+          </ControlSection>
 
           {error ? (
             <p className="error-message" role="alert">
