@@ -38,6 +38,13 @@ type Result = {
   run: number;
 };
 
+type DataAxes = {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+};
+
 const DEFAULTS: Experiment = {
   xMin: -5,
   xMax: 5,
@@ -334,12 +341,59 @@ function ControlSection({
   );
 }
 
+function fitDataAxes(result: Result): DataAxes {
+  const xCandidates = [
+    result.config.xMin,
+    result.config.xMax,
+    ...result.points.map((point) => point.x),
+  ];
+  const xMin = Math.floor(Math.min(...xCandidates));
+  const xMax = Math.ceil(Math.max(...xCandidates));
+  const safeXMin = xMin === xMax ? xMin - 1 : xMin;
+  const safeXMax = xMin === xMax ? xMax + 1 : xMax;
+  const yCandidates = [
+    ...result.points.map((point) => point.y),
+    result.config.slope * safeXMin + result.config.intercept,
+    result.config.slope * safeXMax + result.config.intercept,
+    result.fittedSlope * safeXMin + result.fittedIntercept,
+    result.fittedSlope * safeXMax + result.fittedIntercept,
+  ];
+  const rawYMin = Math.min(...yCandidates);
+  const rawYMax = Math.max(...yCandidates);
+  const yPadding = Math.max((rawYMax - rawYMin) * 0.12, 1);
+
+  return {
+    xMin: safeXMin,
+    xMax: safeXMax,
+    yMin: Math.floor(rawYMin - yPadding),
+    yMax: Math.ceil(rawYMax + yPadding),
+  };
+}
+
+function fitParameterAxisSpan(result: Result) {
+  const { slopeVariance, interceptVariance, slopeIntercept } =
+    result.covariance;
+  const trace = slopeVariance + interceptVariance;
+  const difference = slopeVariance - interceptVariance;
+  const discriminant = Math.sqrt(
+    Math.max(difference ** 2 + 4 * slopeIntercept ** 2, 0),
+  );
+  const largestEigenvalue = Math.max((trace + discriminant) / 2, 0);
+  const ellipseRadius95 = Math.sqrt(5.991 * largestEigenvalue);
+  const estimateOffset = Math.max(
+    Math.abs(result.fittedSlope - result.config.slope),
+    Math.abs(result.fittedIntercept - result.config.intercept),
+  );
+
+  return Math.max((estimateOffset + ellipseRadius95) * 2.35, 1);
+}
+
 function RegressionPlot({
-  config,
   result,
+  axes,
 }: {
-  config: Experiment;
   result: Result;
+  axes: DataAxes;
 }) {
   const width = 920;
   const height = 520;
@@ -347,25 +401,15 @@ function RegressionPlot({
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
 
-  const yCandidates = [
-    ...result.points.map((point) => point.y),
-    config.slope * config.xMin + config.intercept,
-    config.slope * config.xMax + config.intercept,
-    result.fittedSlope * config.xMin + result.fittedIntercept,
-    result.fittedSlope * config.xMax + result.fittedIntercept,
-  ];
-  const rawYMin = Math.min(...yCandidates);
-  const rawYMax = Math.max(...yCandidates);
-  const yPadding = Math.max((rawYMax - rawYMin) * 0.12, 1);
-  const yMin = rawYMin - yPadding;
-  const yMax = rawYMax + yPadding;
+  const { xMin, xMax, yMin, yMax } = axes;
+  const config = result.config;
 
   const scaleX = (x: number) =>
-    margin.left + ((x - config.xMin) / (config.xMax - config.xMin)) * plotWidth;
+    margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
   const scaleY = (y: number) =>
     margin.top + ((yMax - y) / (yMax - yMin)) * plotHeight;
-  const xTickStart = Math.ceil(config.xMin);
-  const xTickEnd = Math.floor(config.xMax);
+  const xTickStart = Math.ceil(xMin);
+  const xTickEnd = Math.floor(xMax);
   const yTickStart = Math.ceil(yMin);
   const yTickEnd = Math.floor(yMax);
   const xTicks = Array.from(
@@ -381,11 +425,11 @@ function RegressionPlot({
   const xLabelInterval = labelInterval(xTicks.length);
   const yLabelInterval = labelInterval(yTicks.length);
 
-  const trueStart = config.slope * config.xMin + config.intercept;
-  const trueEnd = config.slope * config.xMax + config.intercept;
+  const trueStart = config.slope * xMin + config.intercept;
+  const trueEnd = config.slope * xMax + config.intercept;
   const fitStart =
-    result.fittedSlope * config.xMin + result.fittedIntercept;
-  const fitEnd = result.fittedSlope * config.xMax + result.fittedIntercept;
+    result.fittedSlope * xMin + result.fittedIntercept;
+  const fitEnd = result.fittedSlope * xMax + result.fittedIntercept;
 
   return (
     <svg
@@ -467,16 +511,16 @@ function RegressionPlot({
       <g clipPath="url(#plot-area)">
         <line
           className="truth-line"
-          x1={scaleX(config.xMin)}
+          x1={scaleX(xMin)}
           y1={scaleY(trueStart)}
-          x2={scaleX(config.xMax)}
+          x2={scaleX(xMax)}
           y2={scaleY(trueEnd)}
         />
         <line
           className="fit-line"
-          x1={scaleX(config.xMin)}
+          x1={scaleX(xMin)}
           y1={scaleY(fitStart)}
-          x2={scaleX(config.xMax)}
+          x2={scaleX(xMax)}
           y2={scaleY(fitEnd)}
         />
 
@@ -526,7 +570,13 @@ function RegressionPlot({
   );
 }
 
-function ParameterPlot({ result }: { result: Result }) {
+function ParameterPlot({
+  result,
+  axisSpan,
+}: {
+  result: Result;
+  axisSpan: number;
+}) {
   const width = 480;
   const height = 480;
   const margin = { top: 24, right: 24, bottom: 56, left: 56 };
@@ -568,30 +618,9 @@ function ParameterPlot({ result }: { result: Result }) {
 
   const ellipse68 = ellipse(Math.sqrt(2.3));
   const ellipse95 = ellipse(Math.sqrt(5.991));
-  const allSlopes = [
-    result.config.slope,
-    result.fittedSlope,
-    ...ellipse95.map((point) => point.slope),
-  ];
-  const allIntercepts = [
-    result.config.intercept,
-    result.fittedIntercept,
-    ...ellipse95.map((point) => point.intercept),
-  ];
-  const rawSlopeMin = Math.min(...allSlopes);
-  const rawSlopeMax = Math.max(...allSlopes);
-  const rawInterceptMin = Math.min(...allIntercepts);
-  const rawInterceptMax = Math.max(...allIntercepts);
   const truthSlope = result.config.slope;
   const truthIntercept = result.config.intercept;
-  const requiredHalfSpan = Math.max(
-    Math.abs(rawSlopeMin - truthSlope),
-    Math.abs(rawSlopeMax - truthSlope),
-    Math.abs(rawInterceptMin - truthIntercept),
-    Math.abs(rawInterceptMax - truthIntercept),
-    0.5,
-  );
-  const commonSpan = requiredHalfSpan * 2.35;
+  const commonSpan = axisSpan;
   const slopeMin = truthSlope - commonSpan / 2;
   const slopeMax = truthSlope + commonSpan / 2;
   const interceptMin = truthIntercept - commonSpan / 2;
@@ -750,6 +779,12 @@ export default function Home() {
   const [mobileControlSection, setMobileControlSection] = useState<
     "sampling" | "truth" | "outliers" | "regularization"
   >("sampling");
+  const [dataAxes, setDataAxes] = useState<DataAxes>(() =>
+    fitDataAxes(result),
+  );
+  const [parameterAxisSpan, setParameterAxisSpan] = useState(() =>
+    fitParameterAxisSpan(result),
+  );
   const error = validateExperiment(config);
 
   const setValue = (key: keyof Experiment) => (value: number) =>
@@ -820,6 +855,21 @@ export default function Home() {
               </button>
             </div>
             <button
+              className="mobile-fit-axes"
+              type="button"
+              onClick={() =>
+                mobileView === "data"
+                  ? setDataAxes(fitDataAxes(result))
+                  : setParameterAxisSpan(fitParameterAxisSpan(result))
+              }
+              aria-label={`Fit axes to the ${
+                mobileView === "data" ? "data" : "parameter"
+              } plot`}
+              title="Fit axes"
+            >
+              Fit
+            </button>
+            <button
               className="mobile-resample"
               type="button"
               onClick={resample}
@@ -842,9 +892,9 @@ export default function Home() {
             }
           >
             {mobileView === "data" ? (
-              <RegressionPlot config={result.config} result={result} />
+              <RegressionPlot result={result} axes={dataAxes} />
             ) : (
-              <ParameterPlot result={result} />
+              <ParameterPlot result={result} axisSpan={parameterAxisSpan} />
             )}
           </div>
 
@@ -1066,15 +1116,25 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="legend" aria-label="Plot legend">
-                  <span><i className="legend-line truth" />Ground truth</span>
-                  <span><i className="legend-line fit" />Regression</span>
-                  <span><i className="legend-dot sample" />Sample</span>
-                  <span><i className="legend-dot outlier" />Outlier</span>
+                <div className="plot-actions">
+                  <div className="legend" aria-label="Plot legend">
+                    <span><i className="legend-line truth" />Ground truth</span>
+                    <span><i className="legend-line fit" />Regression</span>
+                    <span><i className="legend-dot sample" />Sample</span>
+                    <span><i className="legend-dot outlier" />Outlier</span>
+                  </div>
+                  <button
+                    className="fit-axes-button"
+                    type="button"
+                    onClick={() => setDataAxes(fitDataAxes(result))}
+                    title="Fit the axes to the current data"
+                  >
+                    Fit axes
+                  </button>
                 </div>
               </div>
 
-              <RegressionPlot config={result.config} result={result} />
+              <RegressionPlot result={result} axes={dataAxes} />
             </div>
 
             <div className="parameter-card">
@@ -1083,17 +1143,29 @@ export default function Home() {
                   <p className="step-label">Parameter space</p>
                   <h2>Estimation uncertainty</h2>
                 </div>
-                <div
-                  className="parameter-legend"
-                  aria-label="Parameter plot legend"
-                >
-                  <span><i className="legend-dot parameter-truth" />Truth</span>
-                  <span><i className="legend-dot parameter-estimate" />Estimate</span>
+                <div className="parameter-actions">
+                  <div
+                    className="parameter-legend"
+                    aria-label="Parameter plot legend"
+                  >
+                    <span><i className="legend-dot parameter-truth" />Truth</span>
+                    <span><i className="legend-dot parameter-estimate" />Estimate</span>
+                  </div>
+                  <button
+                    className="fit-axes-button"
+                    type="button"
+                    onClick={() =>
+                      setParameterAxisSpan(fitParameterAxisSpan(result))
+                    }
+                    title="Fit the axes to the estimate and covariance"
+                  >
+                    Fit axes
+                  </button>
                 </div>
               </div>
-              <ParameterPlot result={result} />
+              <ParameterPlot result={result} axisSpan={parameterAxisSpan} />
               <p className="covariance-note">
-                Truth-anchored equal scales · local covariance · 68% / 95%
+                Truth-centered locked scale · local covariance · 68% / 95%
               </p>
             </div>
           </div>

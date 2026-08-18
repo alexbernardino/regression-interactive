@@ -599,6 +599,43 @@ legend span {
   gap: 24px;
 }
 
+.plot-actions,
+.parameter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.parameter-actions {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fit-axes-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid rgba(40, 84, 197, 0.28);
+  border-radius: 8px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.fit-axes-button:hover {
+  border-color: var(--blue);
+}
+
+.fit-axes-button:focus-visible {
+  outline: 3px solid rgba(40, 84, 197, 0.25);
+  outline-offset: 2px;
+}
+
 .plot-heading {
   min-width: 270px;
 }
@@ -1041,7 +1078,7 @@ legend span {
 
   .mobile-stage-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 42px;
+    grid-template-columns: minmax(0, 1fr) 42px 42px;
     gap: 7px;
   }
 
@@ -1055,6 +1092,7 @@ legend span {
   }
 
   .mobile-view-tabs button,
+  .mobile-fit-axes,
   .mobile-resample {
     min-height: 38px;
     border: 0;
@@ -1076,6 +1114,7 @@ legend span {
   }
 
   .mobile-view-tabs button:focus-visible,
+  .mobile-fit-axes:focus-visible,
   .mobile-resample:focus-visible {
     outline: 3px solid rgba(40, 84, 197, 0.3);
     outline-offset: 2px;
@@ -1087,6 +1126,13 @@ legend span {
     font-family: var(--font-geist-mono), monospace;
     font-size: 22px;
     line-height: 1;
+  }
+
+  .mobile-fit-axes {
+    color: var(--blue);
+    background: var(--blue-soft);
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 10px;
   }
 
   .mobile-resample:disabled {
