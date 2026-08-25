@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useReducer, useState, type ReactNode } from "react";
+import { useId, useMemo, useReducer, useState, type ReactNode } from "react";
 
 type Experiment = {
   xMin: number;
@@ -43,6 +43,13 @@ type DataAxes = {
   xMax: number;
   yMin: number;
   yMax: number;
+};
+
+type ParameterAxes = {
+  slopeMin: number;
+  slopeMax: number;
+  interceptMin: number;
+  interceptMax: number;
 };
 
 const DEFAULTS: Experiment = {
@@ -370,22 +377,41 @@ function fitDataAxes(result: Result): DataAxes {
   };
 }
 
-function fitParameterAxisSpan(result: Result) {
-  const { slopeVariance, interceptVariance, slopeIntercept } =
-    result.covariance;
-  const trace = slopeVariance + interceptVariance;
-  const difference = slopeVariance - interceptVariance;
-  const discriminant = Math.sqrt(
-    Math.max(difference ** 2 + 4 * slopeIntercept ** 2, 0),
+function fitParameterAxes(result: Result): ParameterAxes {
+  const slopeRadius95 = Math.sqrt(
+    Math.max(5.991 * result.covariance.slopeVariance, 0),
   );
-  const largestEigenvalue = Math.max((trace + discriminant) / 2, 0);
-  const ellipseRadius95 = Math.sqrt(5.991 * largestEigenvalue);
-  const estimateOffset = Math.max(
-    Math.abs(result.fittedSlope - result.config.slope),
-    Math.abs(result.fittedIntercept - result.config.intercept),
+  const interceptRadius95 = Math.sqrt(
+    Math.max(5.991 * result.covariance.interceptVariance, 0),
   );
+  const rawSlopeMin = Math.min(
+    result.config.slope,
+    result.fittedSlope - slopeRadius95,
+  );
+  const rawSlopeMax = Math.max(
+    result.config.slope,
+    result.fittedSlope + slopeRadius95,
+  );
+  const rawInterceptMin = Math.min(
+    result.config.intercept,
+    result.fittedIntercept - interceptRadius95,
+  );
+  const rawInterceptMax = Math.max(
+    result.config.intercept,
+    result.fittedIntercept + interceptRadius95,
+  );
+  const commonSpan =
+    Math.max(rawSlopeMax - rawSlopeMin, rawInterceptMax - rawInterceptMin, 1) *
+    1.18;
+  const slopeCenter = (rawSlopeMin + rawSlopeMax) / 2;
+  const interceptCenter = (rawInterceptMin + rawInterceptMax) / 2;
 
-  return Math.max((estimateOffset + ellipseRadius95) * 2.35, 1);
+  return {
+    slopeMin: slopeCenter - commonSpan / 2,
+    slopeMax: slopeCenter + commonSpan / 2,
+    interceptMin: interceptCenter - commonSpan / 2,
+    interceptMax: interceptCenter + commonSpan / 2,
+  };
 }
 
 function RegressionPlot({
@@ -572,16 +598,17 @@ function RegressionPlot({
 
 function ParameterPlot({
   result,
-  axisSpan,
+  axes,
 }: {
   result: Result;
-  axisSpan: number;
+  axes: ParameterAxes;
 }) {
   const width = 480;
   const height = 480;
   const margin = { top: 24, right: 24, bottom: 56, left: 56 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
+  const clipId = useId();
   const {
     slopeVariance,
     interceptVariance,
@@ -620,11 +647,8 @@ function ParameterPlot({
   const ellipse95 = ellipse(Math.sqrt(5.991));
   const truthSlope = result.config.slope;
   const truthIntercept = result.config.intercept;
-  const commonSpan = axisSpan;
-  const slopeMin = truthSlope - commonSpan / 2;
-  const slopeMax = truthSlope + commonSpan / 2;
-  const interceptMin = truthIntercept - commonSpan / 2;
-  const interceptMax = truthIntercept + commonSpan / 2;
+  const { slopeMin, slopeMax, interceptMin, interceptMax } = axes;
+  const commonSpan = slopeMax - slopeMin;
 
   const scaleX = (slope: number) =>
     margin.left +
@@ -664,6 +688,17 @@ function ParameterPlot({
         Ground-truth and estimated parameter points with joint 68 and 95
         percent covariance ellipses.
       </desc>
+      <defs>
+        <clipPath id={clipId}>
+          <rect
+            x={margin.left}
+            y={margin.top}
+            width={plotWidth}
+            height={plotHeight}
+            rx="8"
+          />
+        </clipPath>
+      </defs>
       <rect
         className="plot-background"
         x={margin.left}
@@ -713,42 +748,44 @@ function ParameterPlot({
         </g>
       ))}
 
-      <line
-        className="parameter-centerline"
-        x1={scaleX(truthSlope)}
-        y1={margin.top}
-        x2={scaleX(truthSlope)}
-        y2={margin.top + plotHeight}
-      />
-      <line
-        className="parameter-centerline"
-        x1={margin.left}
-        y1={scaleY(truthIntercept)}
-        x2={margin.left + plotWidth}
-        y2={scaleY(truthIntercept)}
-      />
+      <g clipPath={`url(#${clipId})`}>
+        <line
+          className="parameter-centerline"
+          x1={scaleX(truthSlope)}
+          y1={margin.top}
+          x2={scaleX(truthSlope)}
+          y2={margin.top + plotHeight}
+        />
+        <line
+          className="parameter-centerline"
+          x1={margin.left}
+          y1={scaleY(truthIntercept)}
+          x2={margin.left + plotWidth}
+          y2={scaleY(truthIntercept)}
+        />
 
-      <path className="ellipse ellipse-95" d={pathFor(ellipse95)} />
-      <path className="ellipse ellipse-68" d={pathFor(ellipse68)} />
+        <path className="ellipse ellipse-95" d={pathFor(ellipse95)} />
+        <path className="ellipse ellipse-68" d={pathFor(ellipse68)} />
 
-      <circle
-        className="estimated-parameter"
-        cx={scaleX(result.fittedSlope)}
-        cy={scaleY(result.fittedIntercept)}
-        r="7"
-      />
-      <path
-        className="truth-parameter"
-        d={`M ${scaleX(result.config.slope)} ${
-          scaleY(result.config.intercept) - 9
-        } L ${scaleX(result.config.slope) + 9} ${scaleY(
-          result.config.intercept,
-        )} L ${scaleX(result.config.slope)} ${
-          scaleY(result.config.intercept) + 9
-        } L ${scaleX(result.config.slope) - 9} ${scaleY(
-          result.config.intercept,
-        )} Z`}
-      />
+        <circle
+          className="estimated-parameter"
+          cx={scaleX(result.fittedSlope)}
+          cy={scaleY(result.fittedIntercept)}
+          r="7"
+        />
+        <path
+          className="truth-parameter"
+          d={`M ${scaleX(result.config.slope)} ${
+            scaleY(result.config.intercept) - 9
+          } L ${scaleX(result.config.slope) + 9} ${scaleY(
+            result.config.intercept,
+          )} L ${scaleX(result.config.slope)} ${
+            scaleY(result.config.intercept) + 9
+          } L ${scaleX(result.config.slope) - 9} ${scaleY(
+            result.config.intercept,
+          )} Z`}
+        />
+      </g>
 
       <text
         className="axis-label"
@@ -782,8 +819,8 @@ export default function Home() {
   const [dataAxes, setDataAxes] = useState<DataAxes>(() =>
     fitDataAxes(result),
   );
-  const [parameterAxisSpan, setParameterAxisSpan] = useState(() =>
-    fitParameterAxisSpan(result),
+  const [parameterAxes, setParameterAxes] = useState<ParameterAxes>(() =>
+    fitParameterAxes(result),
   );
   const error = validateExperiment(config);
 
@@ -860,7 +897,7 @@ export default function Home() {
               onClick={() =>
                 mobileView === "data"
                   ? setDataAxes(fitDataAxes(result))
-                  : setParameterAxisSpan(fitParameterAxisSpan(result))
+                  : setParameterAxes(fitParameterAxes(result))
               }
               aria-label={`Fit axes to the ${
                 mobileView === "data" ? "data" : "parameter"
@@ -894,7 +931,7 @@ export default function Home() {
             {mobileView === "data" ? (
               <RegressionPlot result={result} axes={dataAxes} />
             ) : (
-              <ParameterPlot result={result} axisSpan={parameterAxisSpan} />
+              <ParameterPlot result={result} axes={parameterAxes} />
             )}
           </div>
 
@@ -1155,7 +1192,7 @@ export default function Home() {
                     className="fit-axes-button"
                     type="button"
                     onClick={() =>
-                      setParameterAxisSpan(fitParameterAxisSpan(result))
+                      setParameterAxes(fitParameterAxes(result))
                     }
                     title="Fit the axes to the estimate and covariance"
                   >
@@ -1163,9 +1200,9 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-              <ParameterPlot result={result} axisSpan={parameterAxisSpan} />
+              <ParameterPlot result={result} axes={parameterAxes} />
               <p className="covariance-note">
-                Truth-centered locked scale · local covariance · 68% / 95%
+                Locked equal scales · press Fit axes to reframe · 68% / 95%
               </p>
             </div>
           </div>
