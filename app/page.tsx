@@ -526,12 +526,19 @@ function RegressionPlot({
       role="img"
       aria-label="Regression data: solid training points, outlined test points, and query residual"
       onClick={(event) => {
-        if (mode === "remove") return;
         const svg = event.currentTarget;
         const matrix = svg.getScreenCTM();
         if (!matrix) return;
         const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
         if (local.x < margin.left || local.x > margin.left + plotWidth || local.y < margin.top || local.y > margin.top + plotHeight) return;
+        if (mode === "remove") {
+          const nearest = result.points.filter(point => point.training).map(point => {
+            const screen = new DOMPoint(scaleX(point.x), scaleY(point.y)).matrixTransform(matrix);
+            return { point, distance: Math.hypot(screen.x - event.clientX, screen.y - event.clientY) };
+          }).sort((a, b) => a.distance - b.distance)[0];
+          if (nearest && nearest.distance <= 14) onRemove(nearest.point.id);
+          return;
+        }
         onPlace(xMin + (local.x - margin.left) / plotWidth * (xMax - xMin), yMax - (local.y - margin.top) / plotHeight * (yMax - yMin));
       }}
     >
@@ -890,7 +897,6 @@ function ParameterPlot({
 export default function Home() {
   const [query, setQuery] = useState<{ x: number; y: number } | null>(null);
   const [editMode, setEditMode] = useState<"query" | "add" | "remove">("query");
-  const [entry, setEntry] = useState({ x: 0, y: 0 });
   const [{ config, result }, dispatch] = useReducer(
     updateLabState,
     undefined,
@@ -934,6 +940,13 @@ export default function Home() {
     <span>Set</span><span>n</span><span>RMSE</span><span>R²</span>
     <b>Training</b><strong>{result.points.filter(p => p.training).length}</strong><strong>{round(result.rmse)}</strong><strong>{round(result.r2)}</strong>
     <b>Test</b><strong>{result.points.filter(p => !p.training).length}</strong><strong>{round(result.testRmse)}</strong><strong>{round(result.testR2)}</strong>
+  </div>;
+  const editor = <div className="plot-editor">
+    <div className="editor-modes">
+      {(["query", "add", "remove"] as const).map(mode => <button key={mode} type="button" aria-pressed={editMode === mode} onClick={() => setEditMode(mode)}>{mode === "query" ? "Query" : mode === "add" ? "Add training" : "Remove training"}</button>)}
+      <button type="button" disabled={!query} onClick={() => setQuery(null)}>Clear query</button>
+    </div>
+    <p>{editMode === "remove" ? "Tap a solid training point to remove it (minimum two)." : editMode === "add" ? "Tap the data plot to add a training point." : "Tap the data plot to place a query."}</p>
   </div>;
 
   return (
@@ -980,6 +993,7 @@ export default function Home() {
             </button>
           </div>
 
+          {editor}
           <div className="mobile-plots-grid">
             <section className="mobile-plot-pane mobile-data-pane" aria-label="Data plot">
               <div className="mobile-plot-heading">
@@ -1033,7 +1047,7 @@ export default function Home() {
           </div>
 
           {performance}
-          <div className="mobile-metrics" aria-label="Live regression metrics">
+          <div className="mobile-metrics coefficients-only" aria-label="Estimated coefficients">
             <div>
               <span>Slope m̂</span>
               <strong>{round(result.fittedSlope)}</strong>
@@ -1042,37 +1056,10 @@ export default function Home() {
               <span>Intercept b̂</span>
               <strong>{round(result.fittedIntercept)}</strong>
             </div>
-            <div>
-              <span>Train RMSE</span>
-              <strong>{round(result.rmse)}</strong>
-            </div>
-            <div>
-              <span>Train R²</span>
-              <strong>{round(result.r2)}</strong>
-            </div>
           </div>
         </section>
 
         <aside className="controls">
-          <section className="regression-editor" aria-label="Data interaction tools">
-            <div className="editor-modes">
-              {(["query", "add", "remove"] as const).map(mode => <button key={mode} type="button" aria-pressed={editMode === mode} onClick={() => setEditMode(mode)}>{mode === "query" ? "Query" : mode === "add" ? "Add training" : "Remove training"}</button>)}
-            </div>
-            <p>Click or tap the data plot. Solid = training; outline = test; black center = added point. Removal keeps at least two training points.</p>
-            <div className="field-grid">
-              <NumberField label="Point x" value={entry.x} step={0.1} onChange={x => setEntry(current => ({ ...current, x }))} />
-              <NumberField label="Point y" value={entry.y} step={0.1} onChange={y => setEntry(current => ({ ...current, y }))} />
-            </div>
-            <div className="editor-modes">
-              <button type="button" onClick={() => setQuery(entry)}>Place query</button>
-              <button type="button" onClick={() => dispatch({ type: "add", ...entry })}>Add training point</button>
-              <button type="button" disabled={!query} onClick={() => setQuery(null)}>Clear query</button>
-            </div>
-            {query && <p className="query-error">Query ({round(query.x)}, {round(query.y)}) · prediction {round(result.fittedSlope * query.x + result.fittedIntercept)} · residual y − ŷ = {round(query.y - result.fittedSlope * query.x - result.fittedIntercept)} · squared error {round((query.y - result.fittedSlope * query.x - result.fittedIntercept) ** 2)}. Query is excluded from fitting and metrics.</p>}
-            <details><summary>Remove a training point by coordinates</summary>
-              {result.points.filter(p => p.training).map(p => <button className="remove-point-row" key={p.id} type="button" disabled={result.points.filter(point => point.training).length <= 2} onClick={() => dispatch({ type: "remove", id: p.id })}>Remove ({round(p.x, 2)}, {round(p.y, 2)}){p.manual ? " · added" : ""}</button>)}
-            </details>
-          </section>
           <div className="controls-heading">
             <div>
               <p className="step-label">Experiment setup</p>
@@ -1278,6 +1265,7 @@ export default function Home() {
                 </div>
               </div>
 
+              {editor}
               <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
               {queryReadout}
               <p className="field-note">Solid: training · outlined: test · black center: added · yellow: query; dashed segment: residual</p>
@@ -1317,7 +1305,7 @@ export default function Home() {
           </div>
 
           {performance}
-          <div className="results-grid">
+          <div className="results-grid equations-only">
             <section className="equation-card">
               <p className="step-label">Compare the models</p>
               <div className="equation-row truth-equation">
@@ -1342,23 +1330,6 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="metric-card rmse-card">
-              <div className="metric-top">
-                <span>Training RMSE</span>
-                <small>prediction error</small>
-              </div>
-              <strong>{round(result.rmse)}</strong>
-              <p>Typical vertical distance between an observation and the fitted line.</p>
-            </section>
-
-            <section className="metric-card r2-card">
-              <div className="metric-top">
-                <span>Training R²</span>
-                <small>explained variance</small>
-              </div>
-              <strong>{round(result.r2)}</strong>
-              <p>Share of observed y variation explained by the fitted line.</p>
-            </section>
           </div>
 
           <div className="observation-strip">
