@@ -1035,7 +1035,7 @@ legend span {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 820px), (orientation: landscape) and (max-height: 560px) and (max-width: 1024px) {
   body {
     overflow: auto;
   }
@@ -1418,13 +1418,13 @@ legend span {
 
 @media (orientation: landscape) and (max-height: 560px) and (max-width: 1024px) {
   body {
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   main {
     width: calc(100% - 12px);
-    height: 100dvh;
-    min-height: 0;
+    height: auto;
+    min-height: 100dvh;
   }
 
   .site-header {
@@ -1451,10 +1451,11 @@ legend span {
   .lab {
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(245px, 34vw) minmax(0, 1fr);
-    grid-template-areas: "controls plots";
+    grid-template-columns: minmax(220px, 30vw) minmax(0, 1fr);
+    grid-template-areas: "controls plots" "details details";
+    align-items: start;
     margin: 5px 0 7px;
-    overflow: hidden;
+    overflow: visible;
     border-radius: 16px;
   }
 
@@ -1463,7 +1464,7 @@ legend span {
     min-height: 0;
     order: initial;
     padding: 10px 12px;
-    overflow-y: auto;
+    overflow: visible;
     border-right: 1px solid var(--line);
     border-bottom: 0;
   }
@@ -1511,14 +1512,16 @@ legend span {
   }
 
   .mobile-visualization {
-    position: static;
+    position: sticky;
+    top: 0;
+    align-self: start;
     grid-area: plots;
     min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
     padding: 7px 8px;
-    overflow-y: auto;
+    overflow: visible;
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -1527,7 +1530,7 @@ legend span {
 
   .mobile-plots-grid {
     flex: 0 0 auto;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
     gap: 5px;
     margin-top: 5px;
   }
@@ -1542,7 +1545,7 @@ legend span {
   }
 
   .mobile-plot-frame {
-    height: 118px;
+    height: clamp(125px, 38dvh, 190px);
   }
 
   .mobile-plot-caption {
@@ -1550,8 +1553,7 @@ legend span {
   }
 
   .mobile-metrics {
-    position: sticky;
-    bottom: 0;
+    position: static;
     margin-top: 5px;
     padding-top: 4px;
     background: rgba(255, 253, 248, 0.97);
@@ -1562,7 +1564,10 @@ legend span {
   }
 
   .workspace {
-    display: none;
+    grid-area: details;
+    display: grid;
+    min-width: 0;
+    overflow: visible;
   }
 }
 
