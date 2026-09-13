@@ -68,7 +68,7 @@ const DEFAULTS: Experiment = {
   noiseVariance: 2,
   outlierMin: -14,
   outlierMax: 18,
-  outliers: 5,
+  outliers: 0,
   l1: 0,
   l2: 0,
   testFraction: 30,
