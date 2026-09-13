@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+.regression-editor { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.editor-modes { display: flex; flex-wrap: wrap; gap: 5px; }
+.editor-modes button { flex: 1; min-height: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font-size: 11px; cursor: pointer; }
+.editor-modes button[aria-pressed="true"] { background: var(--blue); color: white; }
+.editor-modes button:disabled, .remove-point-row:disabled { opacity: .5; cursor: default; }
+.regression-editor p, .regression-editor summary { font-size: 11px; line-height: 1.45; }
+.query-error { padding: 8px; background: var(--blue-soft); border-radius: 7px; }
+.plot-query-readout { flex-shrink: 0; margin: 3px 0; padding: 4px; border-radius: 5px; background: var(--blue-soft); font-size: 10px; text-align: center; overflow-wrap: anywhere; }
+.remove-point-row { display: block; width: 100%; padding: 6px; border: 1px solid var(--line); background: var(--panel); text-align: left; font-size: 11px; }
+.regression-editor details { max-height: 170px; overflow: auto; margin-top: 8px; }
+.split-performance { display: grid; grid-template-columns: 1fr .5fr 1fr 1fr; gap: 3px 8px; flex-shrink: 0; padding: 7px 10px; margin: 5px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font: 11px var(--font-geist-mono), monospace; }
+.split-performance span { color: var(--muted); }
+.split-performance strong { text-align: right; }
+.resample-subsets { margin-top: 12px; }
+.regression-plot .training { cursor: pointer; }
+
 :root {
   --font-geist-sans: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -565,7 +581,7 @@ legend span {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   padding: 15px;
   overflow: hidden;
 }
@@ -1063,7 +1079,7 @@ legend span {
     overflow: visible;
   }
 
-  .mobile-visualization {
+.mobile-visualization {
     position: sticky;
     top: 0;
     z-index: 20;

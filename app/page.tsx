@@ -14,12 +14,16 @@ type Experiment = {
   outliers: number;
   l1: number;
   l2: number;
+  testFraction: number;
 };
 
 type Point = {
   x: number;
   y: number;
   outlier: boolean;
+  training: boolean;
+  id: string;
+  manual?: boolean;
 };
 
 type Result = {
@@ -29,6 +33,8 @@ type Result = {
   fittedIntercept: number;
   rmse: number;
   r2: number;
+  testRmse: number;
+  testR2: number;
   covariance: {
     slopeVariance: number;
     interceptVariance: number;
@@ -64,6 +70,7 @@ const DEFAULTS: Experiment = {
   outliers: 5,
   l1: 0,
   l2: 0,
+  testFraction: 30,
 };
 
 const round = (value: number, digits = 3) =>
@@ -88,28 +95,43 @@ function gaussianRandom(random: () => number) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-function runRegression(config: Experiment, run: number): Result {
+function evaluate(points: Point[], slope: number, intercept: number) {
+  if (!points.length) return { rmse: NaN, r2: NaN };
+  const mean = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+  const error = points.reduce((sum, point) => sum + (point.y - slope * point.x - intercept) ** 2, 0);
+  const spread = points.reduce((sum, point) => sum + (point.y - mean) ** 2, 0);
+  return { rmse: Math.sqrt(error / points.length), r2: points.length < 2 || spread === 0 ? NaN : 1 - error / spread };
+}
+
+function runRegression(config: Experiment, run: number, testRun = run, manual: Point[] = [], removed: string[] = []): Result {
   const points: Point[] = [];
   const xSpan = config.xMax - config.xMin;
   const noiseStdDev = Math.sqrt(config.noiseVariance);
-  const random = seededRandom(8147 + run * 104729);
-
-  for (let index = 0; index < config.samples; index += 1) {
+  for (const training of [true, false]) {
+  const testCount = Math.round(config.samples * config.testFraction / 100);
+  const count = training ? config.samples - testCount : testCount;
+  const random = seededRandom((training ? 8147 : 95131) + (training ? run : testRun) * 104729);
+  for (let index = 0; index < count; index += 1) {
     const x = config.xMin + random() * xSpan;
     const y =
       config.slope * x +
       config.intercept +
       gaussianRandom(random) * noiseStdDev;
-    points.push({ x, y, outlier: false });
+    points.push({ x, y, outlier: false, training, id: `${training ? "train" : "test"}-sample-${index}` });
   }
 
-  for (let index = 0; index < config.outliers; index += 1) {
-    const x = config.xMin + random() * xSpan;
+  const outlierRandom = seededRandom((training ? 37139 : 192811) + (training ? run : testRun) * 7919);
+  const testOutliers = Math.round(config.outliers * config.testFraction / 100);
+  for (let index = 0; index < (training ? config.outliers - testOutliers : testOutliers); index += 1) {
+    const x = config.xMin + outlierRandom() * xSpan;
     const y =
       config.outlierMin +
-      random() * (config.outlierMax - config.outlierMin);
-    points.push({ x, y, outlier: true });
+      outlierRandom() * (config.outlierMax - config.outlierMin);
+    points.push({ x, y, outlier: true, training, id: `${training ? "train" : "test"}-outlier-${index}` });
   }
+  }
+  const allPoints = [...points.filter(point => !removed.includes(point.id)), ...manual];
+  points.splice(0, points.length, ...allPoints.filter(point => point.training));
 
   const xMean =
     points.reduce((total, point) => total + point.x, 0) / points.length;
@@ -131,7 +153,7 @@ function runRegression(config: Experiment, run: number): Result {
     Math.sign(normalizedCrossProduct) *
     Math.max(Math.abs(normalizedCrossProduct) - config.l1, 0);
   const fittedSlope =
-    softThresholdedSlope / (normalizedSquaredX + config.l2);
+    normalizedSquaredX + config.l2 > 0 ? softThresholdedSlope / (normalizedSquaredX + config.l2) : 0;
   const fittedIntercept = yMean - fittedSlope * xMean;
   const residualSum = points.reduce((total, point) => {
     const prediction = fittedSlope * point.x + fittedIntercept;
@@ -144,18 +166,20 @@ function runRegression(config: Experiment, run: number): Result {
   const residualVariance = residualSum / Math.max(points.length - 2, 1);
   const regularizedDenominator = denominator + points.length * config.l2;
   const slopeVariance =
-    (residualVariance * denominator) / regularizedDenominator ** 2;
+    regularizedDenominator > 0 ? (residualVariance * denominator) / regularizedDenominator ** 2 : 0;
   const interceptVariance =
     residualVariance / points.length + xMean ** 2 * slopeVariance;
   const slopeIntercept = -xMean * slopeVariance;
 
   return {
     config: { ...config },
-    points,
+    points: allPoints,
     fittedSlope,
     fittedIntercept,
     rmse: Math.sqrt(residualSum / points.length),
-    r2: totalSum === 0 ? 1 : 1 - residualSum / totalSum,
+    r2: totalSum === 0 ? NaN : 1 - residualSum / totalSum,
+    testRmse: evaluate(allPoints.filter(point => !point.training), fittedSlope, fittedIntercept).rmse,
+    testR2: evaluate(allPoints.filter(point => !point.training), fittedSlope, fittedIntercept).r2,
     covariance: {
       slopeVariance,
       interceptVariance,
@@ -167,14 +191,16 @@ function runRegression(config: Experiment, run: number): Result {
 }
 
 function validateExperiment(config: Experiment) {
+  if (!Object.values(config).every(Number.isFinite)) return "Enter finite values for every parameter.";
+  if (config.testFraction < 10 || config.testFraction > 50) return "Choose a test fraction between 10% and 50%.";
   if (config.xMax <= config.xMin) {
     return "The maximum x value must be greater than the minimum.";
   }
   if (config.outlierMax <= config.outlierMin && config.outliers > 0) {
     return "The outlier maximum must be greater than its minimum.";
   }
-  if (config.samples < 2 || config.samples > 500) {
-    return "Choose between 2 and 500 regular samples.";
+  if (config.samples < 4 || config.samples > 500) {
+    return "Choose between 4 and 500 regular samples.";
   }
   if (config.outliers < 0 || config.outliers > 100) {
     return "Choose between 0 and 100 outliers.";
@@ -192,38 +218,65 @@ type LabState = {
   config: Experiment;
   run: number;
   result: Result;
+  testRun: number;
+  manual: Point[];
+  removed: string[];
+  nextId: number;
 };
 
 type LabAction =
   | { type: "set-value"; key: keyof Experiment; value: number }
-  | { type: "resample" };
+  | { type: "resample"; subset?: "training" | "test" }
+  | { type: "add"; x: number; y: number }
+  | { type: "remove"; id: string };
 
 function createInitialLabState(): LabState {
   return {
     config: DEFAULTS,
     run: 1,
+    testRun: 1,
+    manual: [],
+    removed: [],
+    nextId: 1,
     result: runRegression(DEFAULTS, 1),
   };
 }
 
 function updateLabState(state: LabState, action: LabAction): LabState {
+  if (action.type === "add" || action.type === "remove") {
+    if (action.type === "add" && (!Number.isFinite(action.x) || !Number.isFinite(action.y))) return state;
+    if (action.type === "remove" && !state.result.points.some(p => p.id === action.id && p.training)) return state;
+    if (action.type === "remove" && state.result.points.filter(p => p.training).length <= 2) return state;
+    const manual = action.type === "add"
+      ? [...state.manual, { x: action.x, y: action.y, training: true, outlier: false, manual: true, id: `manual-${state.nextId}` }]
+      : state.manual.filter(p => p.id !== action.id);
+    const removed = action.type === "remove" ? [...state.removed, action.id] : state.removed;
+    return { ...state, manual, removed, nextId: state.nextId + 1,
+      result: runRegression(state.result.config, state.run, state.testRun, manual, removed) };
+  }
   if (action.type === "resample") {
     if (validateExperiment(state.config)) return state;
-    const run = state.run + 1;
+    const run = state.run + (action.subset === "test" ? 0 : 1);
+    const testRun = state.testRun + (action.subset === "training" ? 0 : 1);
+    const removed = action.subset === "test" ? state.removed : [];
     return {
       ...state,
       run,
-      result: runRegression(state.config, run),
+      testRun,
+      removed,
+      result: runRegression(state.config, run, testRun, state.manual, removed),
     };
   }
 
   const config = { ...state.config, [action.key]: action.value };
+  const removed = ["samples", "outliers", "testFraction"].includes(action.key) ? [] : state.removed;
   return {
     ...state,
     config,
+    removed,
     result: validateExperiment(config)
       ? state.result
-      : runRegression(config, state.run),
+      : runRegression(config, state.run, state.testRun, state.manual, removed),
   };
 }
 
@@ -417,10 +470,19 @@ function fitParameterAxes(result: Result): ParameterAxes {
 function RegressionPlot({
   result,
   axes,
+  query,
+  mode,
+  onPlace,
+  onRemove,
 }: {
   result: Result;
   axes: DataAxes;
+  query: { x: number; y: number } | null;
+  mode: "query" | "add" | "remove";
+  onPlace: (x: number, y: number) => void;
+  onRemove: (id: string) => void;
 }) {
+  const plotId = useId();
   const width = 920;
   const height = 520;
   const margin = { top: 30, right: 42, bottom: 62, left: 70 };
@@ -462,15 +524,24 @@ function RegressionPlot({
       className="regression-plot"
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-labelledby="plot-title plot-description"
+      aria-label="Regression data: solid training points, outlined test points, and query residual"
+      onClick={(event) => {
+        if (mode === "remove") return;
+        const svg = event.currentTarget;
+        const matrix = svg.getScreenCTM();
+        if (!matrix) return;
+        const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+        if (local.x < margin.left || local.x > margin.left + plotWidth || local.y < margin.top || local.y > margin.top + plotHeight) return;
+        onPlace(xMin + (local.x - margin.left) / plotWidth * (xMax - xMin), yMax - (local.y - margin.top) / plotHeight * (yMax - yMin));
+      }}
     >
-      <title id="plot-title">Linear regression experiment</title>
-      <desc id="plot-description">
+      <title>Linear regression experiment</title>
+      <desc>
         A scatter plot showing regular samples, outliers, the ground-truth line,
         and the ordinary least-squares regression line.
       </desc>
       <defs>
-        <clipPath id="plot-area">
+        <clipPath id={plotId}>
           <rect
             x={margin.left}
             y={margin.top}
@@ -534,7 +605,7 @@ function RegressionPlot({
         </g>
       ))}
 
-      <g clipPath="url(#plot-area)">
+      <g clipPath={`url(#${plotId})`}>
         <line
           className="truth-line"
           x1={scaleX(xMin)}
@@ -554,7 +625,9 @@ function RegressionPlot({
           .filter((point) => !point.outlier)
           .map((point, index) => (
             <circle
-              className="sample-point"
+              className={`sample-point ${point.training ? "training" : "test-point"}`}
+              style={!point.training ? { fill: "var(--panel)", stroke: "var(--teal)", strokeWidth: 2.5 } : undefined}
+              onClick={(event) => { if (mode === "remove" && point.training) { event.stopPropagation(); onRemove(point.id); } }}
               key={`sample-${index}`}
               cx={scaleX(point.x)}
               cy={scaleY(point.y)}
@@ -566,7 +639,9 @@ function RegressionPlot({
           .filter((point) => point.outlier)
           .map((point, index) => (
             <path
-              className="outlier-point"
+              className={`outlier-point ${point.training ? "training" : "test-point"}`}
+              style={!point.training ? { fill: "var(--panel)", stroke: "var(--magenta)", strokeWidth: 2.5 } : undefined}
+              onClick={(event) => { if (mode === "remove" && point.training) { event.stopPropagation(); onRemove(point.id); } }}
               key={`outlier-${index}`}
               d={`M ${scaleX(point.x)} ${scaleY(point.y) - 8} L ${
                 scaleX(point.x) + 8
@@ -575,6 +650,12 @@ function RegressionPlot({
               } L ${scaleX(point.x) - 8} ${scaleY(point.y)} Z`}
             />
           ))}
+        {result.points.filter(p => p.manual).map(p => <circle key={p.id} cx={scaleX(p.x)} cy={scaleY(p.y)} r="2" fill="black" pointerEvents="none" />)}
+        {query && <g pointerEvents="none">
+          <line x1={scaleX(query.x)} x2={scaleX(query.x)} y1={scaleY(query.y)} y2={scaleY(result.fittedSlope * query.x + result.fittedIntercept)} stroke="#172033" strokeWidth="3" strokeDasharray="6 4" />
+          <circle cx={scaleX(query.x)} cy={scaleY(query.y)} r="8" fill="#d7ef49" stroke="#172033" strokeWidth="3" />
+          <circle cx={scaleX(query.x)} cy={scaleY(result.fittedSlope * query.x + result.fittedIntercept)} r="5" fill="#172033" />
+        </g>}
       </g>
 
       <text
@@ -807,6 +888,9 @@ function ParameterPlot({
 }
 
 export default function Home() {
+  const [query, setQuery] = useState<{ x: number; y: number } | null>(null);
+  const [editMode, setEditMode] = useState<"query" | "add" | "remove">("query");
+  const [entry, setEntry] = useState({ x: 0, y: 0 });
   const [{ config, result }, dispatch] = useReducer(
     updateLabState,
     undefined,
@@ -839,6 +923,18 @@ export default function Home() {
   const resample = () => {
     dispatch({ type: "resample" });
   };
+  const plotTools = {
+    query,
+    mode: editMode,
+    onPlace: (x: number, y: number) => editMode === "add" ? dispatch({ type: "add", x, y }) : setQuery({ x, y }),
+    onRemove: (id: string) => dispatch({ type: "remove", id }),
+  };
+  const queryReadout = query && <p className="plot-query-readout">Query y = {round(query.y)} · ŷ = {round(result.fittedSlope * query.x + result.fittedIntercept)} · y − ŷ = {round(query.y - result.fittedSlope * query.x - result.fittedIntercept)}</p>;
+  const performance = <div className="split-performance" aria-label="Training and test evaluation">
+    <span>Set</span><span>n</span><span>RMSE</span><span>R²</span>
+    <b>Training</b><strong>{result.points.filter(p => p.training).length}</strong><strong>{round(result.rmse)}</strong><strong>{round(result.r2)}</strong>
+    <b>Test</b><strong>{result.points.filter(p => !p.training).length}</strong><strong>{round(result.testRmse)}</strong><strong>{round(result.testR2)}</strong>
+  </div>;
 
   return (
     <main>
@@ -898,8 +994,9 @@ export default function Home() {
                 </button>
               </div>
               <div className="mobile-plot-frame">
-                <RegressionPlot result={result} axes={dataAxes} />
+                <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
               </div>
+              {queryReadout}
               <div className="mobile-plot-caption">
               <div className="legend" aria-label="Data plot legend">
                 <span><i className="legend-line truth" />Truth</span>
@@ -935,6 +1032,7 @@ export default function Home() {
             </section>
           </div>
 
+          {performance}
           <div className="mobile-metrics" aria-label="Live regression metrics">
             <div>
               <span>Slope m̂</span>
@@ -945,17 +1043,36 @@ export default function Home() {
               <strong>{round(result.fittedIntercept)}</strong>
             </div>
             <div>
-              <span>RMSE</span>
+              <span>Train RMSE</span>
               <strong>{round(result.rmse)}</strong>
             </div>
             <div>
-              <span>R²</span>
+              <span>Train R²</span>
               <strong>{round(result.r2)}</strong>
             </div>
           </div>
         </section>
 
         <aside className="controls">
+          <section className="regression-editor" aria-label="Data interaction tools">
+            <div className="editor-modes">
+              {(["query", "add", "remove"] as const).map(mode => <button key={mode} type="button" aria-pressed={editMode === mode} onClick={() => setEditMode(mode)}>{mode === "query" ? "Query" : mode === "add" ? "Add training" : "Remove training"}</button>)}
+            </div>
+            <p>Click or tap the data plot. Solid = training; outline = test; black center = added point. Removal keeps at least two training points.</p>
+            <div className="field-grid">
+              <NumberField label="Point x" value={entry.x} step={0.1} onChange={x => setEntry(current => ({ ...current, x }))} />
+              <NumberField label="Point y" value={entry.y} step={0.1} onChange={y => setEntry(current => ({ ...current, y }))} />
+            </div>
+            <div className="editor-modes">
+              <button type="button" onClick={() => setQuery(entry)}>Place query</button>
+              <button type="button" onClick={() => dispatch({ type: "add", ...entry })}>Add training point</button>
+              <button type="button" disabled={!query} onClick={() => setQuery(null)}>Clear query</button>
+            </div>
+            {query && <p className="query-error">Query ({round(query.x)}, {round(query.y)}) · prediction {round(result.fittedSlope * query.x + result.fittedIntercept)} · residual y − ŷ = {round(query.y - result.fittedSlope * query.x - result.fittedIntercept)} · squared error {round((query.y - result.fittedSlope * query.x - result.fittedIntercept) ** 2)}. Query is excluded from fitting and metrics.</p>}
+            <details><summary>Remove a training point by coordinates</summary>
+              {result.points.filter(p => p.training).map(p => <button className="remove-point-row" key={p.id} type="button" disabled={result.points.filter(point => point.training).length <= 2} onClick={() => dispatch({ type: "remove", id: p.id })}>Remove ({round(p.x, 2)}, {round(p.y, 2)}){p.manual ? " · added" : ""}</button>)}
+            </details>
+          </section>
           <div className="controls-heading">
             <div>
               <p className="step-label">Experiment setup</p>
@@ -991,12 +1108,14 @@ export default function Home() {
                 />
               </div>
               <SliderField
-                label="Regular samples"
+                label="Total regular points"
                 value={config.samples}
-                min={2}
+                min={4}
                 max={500}
                 onChange={setValue("samples")}
               />
+              <SliderField label="Test fraction" value={config.testFraction} min={10} max={50} step={5} onChange={setValue("testFraction")} />
+              <p className="field-note">{config.samples + config.outliers} generated points in total (regular + outliers), split into training and test. Added training points are extra.</p>
           </ControlSection>
 
           <ControlSection
@@ -1119,6 +1238,11 @@ export default function Home() {
             Parameters update the current experiment instantly. Resample draws
             fresh random points.
           </p>
+          <div className="editor-modes resample-subsets">
+            <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "training" })}>Training only ↻</button>
+            <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "test" })}>Test only ↻</button>
+          </div>
+          <p className="field-note">Added points stay fixed. Resampling training restores removed generated points. Axes stay fixed; use Fit axes when needed.</p>
         </aside>
 
         <div className="workspace">
@@ -1154,7 +1278,9 @@ export default function Home() {
                 </div>
               </div>
 
-              <RegressionPlot result={result} axes={dataAxes} />
+              <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+              {queryReadout}
+              <p className="field-note">Solid: training · outlined: test · black center: added · yellow: query; dashed segment: residual</p>
             </div>
 
             <div className="parameter-card">
@@ -1190,6 +1316,7 @@ export default function Home() {
             </div>
           </div>
 
+          {performance}
           <div className="results-grid">
             <section className="equation-card">
               <p className="step-label">Compare the models</p>
@@ -1217,7 +1344,7 @@ export default function Home() {
 
             <section className="metric-card rmse-card">
               <div className="metric-top">
-                <span>RMSE</span>
+                <span>Training RMSE</span>
                 <small>prediction error</small>
               </div>
               <strong>{round(result.rmse)}</strong>
@@ -1226,7 +1353,7 @@ export default function Home() {
 
             <section className="metric-card r2-card">
               <div className="metric-top">
-                <span>R²</span>
+                <span>Training R²</span>
                 <small>explained variance</small>
               </div>
               <strong>{round(result.r2)}</strong>
