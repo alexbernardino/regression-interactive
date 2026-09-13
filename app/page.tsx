@@ -939,10 +939,14 @@ export default function Home() {
     onRemove: (id: string) => dispatch({ type: "remove", id }),
   };
   const queryReadout = query && <p className="plot-query-readout">Query y = {round(query.y)} · ŷ = {round(result.fittedSlope * query.x + result.fittedIntercept)} · y − ŷ = {round(query.y - result.fittedSlope * query.x - result.fittedIntercept)}</p>;
-  const performance = <div className="split-performance" aria-label="Training and test evaluation">
-    <span>Set</span><span>n</span><span>RMSE</span><span>R²</span>
-    <b>Training</b><strong>{result.points.filter(p => p.training).length}</strong><strong>{round(result.rmse)}</strong><strong>{round(result.r2)}</strong>
-    <b>Test</b><strong>{result.points.filter(p => !p.training).length}</strong><strong>{round(result.testRmse)}</strong><strong>{round(result.testR2)}</strong>
+  const r2Readout = <div className="plot-r2-readout" aria-label="Training and test R squared">
+    <span>Train R² <strong>{round(result.r2)}</strong></span>
+    <span>Test R² <strong>{round(result.testR2)}</strong></span>
+  </div>;
+  const resampleControls = <div className="resample-toolbar" role="group" aria-label="Resample data">
+    <button type="button" disabled={Boolean(error)} onClick={resample}>All ↻</button>
+    <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "training" })}>Train ↻</button>
+    <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "test" })}>Test ↻</button>
   </div>;
   const editor = <div className="plot-editor">
     <div className="editor-modes">
@@ -1016,10 +1020,7 @@ export default function Home() {
               </div>
               <div className="mobile-plot-frame">
                 <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
-                <div className="plot-r2-readout" aria-label="Training and test R squared">
-                  <span>Train R² <strong>{round(result.r2)}</strong></span>
-                  <span>Test R² <strong>{round(result.testR2)}</strong></span>
-                </div>
+                {r2Readout}
               </div>
               {queryReadout}
               <div className="mobile-plot-caption">
@@ -1216,23 +1217,6 @@ export default function Home() {
             </p>
           ) : null}
 
-          <button
-            className="run-button"
-            type="button"
-            onClick={resample}
-            disabled={Boolean(error)}
-          >
-            <span>Resample data</span>
-            <span aria-hidden="true">→</span>
-          </button>
-          <p className="button-note">
-            Parameters update the current experiment instantly. Resample draws
-            fresh random points.
-          </p>
-          <div className="editor-modes resample-subsets">
-            <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "training" })}>Training only ↻</button>
-            <button type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "test" })}>Test only ↻</button>
-          </div>
           <p className="field-note">Added points stay fixed. Resampling training restores removed generated points. Axes stay fixed; use Fit axes when needed.</p>
         </aside>
 
@@ -1244,10 +1228,6 @@ export default function Home() {
                   <div>
                     <p className="step-label">Observed sample</p>
                     <h2>Signal, noise &amp; influence</h2>
-                  </div>
-                  <div className="sample-summary">
-                    <strong>{result.points.length}</strong>
-                    <span>total points</span>
                   </div>
                 </div>
 
@@ -1269,8 +1249,12 @@ export default function Home() {
                 </div>
               </div>
 
+              {resampleControls}
               {editor}
-              <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+              <div className="desktop-data-frame">
+                <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+                {r2Readout}
+              </div>
               {queryReadout}
               <p className="field-note">Solid: training · outlined: test · black center: added · yellow: query; dashed segment: residual</p>
             </div>
@@ -1308,7 +1292,6 @@ export default function Home() {
             </div>
           </div>
 
-          {performance}
           <div className="results-grid equations-only">
             <section className="equation-card">
               <p className="step-label">Compare the models</p>
