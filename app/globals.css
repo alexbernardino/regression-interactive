@@ -1511,7 +1511,8 @@ legend span {
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(220px, 30vw) minmax(0, 1fr);
-    grid-template-areas: "controls plots" "details details";
+    grid-template-areas: "controls plots" "details plots";
+    grid-template-rows: auto 1fr;
     align-items: start;
     margin: 5px 0 7px;
     overflow: visible;
@@ -1627,6 +1628,33 @@ legend span {
     display: grid;
     min-width: 0;
     overflow: visible;
+    padding: 10px 12px;
+  }
+
+  .workspace .equation-card {
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .workspace .equation-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .workspace .equation-row strong {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace .observation-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .workspace .author-credit {
+    white-space: normal;
   }
 }
 

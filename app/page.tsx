@@ -907,7 +907,7 @@ export default function Home() {
   );
   const [mobileControlSection, setMobileControlSection] = useState<
     "sampling" | "truth" | "outliers" | "regularization"
-  >("sampling");
+  >("truth");
   const [dataAxes, setDataAxes] = useState<DataAxes>(() =>
     fitDataAxes(result),
   );
@@ -1075,38 +1075,6 @@ export default function Home() {
 
           <ControlSection
             number="01"
-            title="Normal points"
-            id="sampling-controls"
-            open={mobileControlSection === "sampling"}
-            onOpen={() => setMobileControlSection("sampling")}
-          >
-              <div className="field-grid">
-                <NumberField
-                  label="x minimum"
-                  value={config.xMin}
-                  step={0.5}
-                  onChange={setValue("xMin")}
-                />
-                <NumberField
-                  label="x maximum"
-                  value={config.xMax}
-                  step={0.5}
-                  onChange={setValue("xMax")}
-                />
-              </div>
-              <SliderField
-                label="Total normal points"
-                value={config.samples}
-                min={4}
-                max={500}
-                onChange={setValue("samples")}
-              />
-              <SliderField label="Test fraction (%)" value={config.testFraction} min={10} max={50} step={5} onChange={setValue("testFraction")} />
-              <p className="field-note">{config.samples + config.outliers} generated points in total (regular + outliers), split into training and test. Added training points are extra.</p>
-          </ControlSection>
-
-          <ControlSection
-            number="02"
             title="Ground truth"
             id="truth-controls"
             open={mobileControlSection === "truth"}
@@ -1139,6 +1107,38 @@ export default function Home() {
                 max={25}
                 onChange={setValue("noiseVariance")}
               />
+          </ControlSection>
+
+          <ControlSection
+            number="02"
+            title="Normal points"
+            id="sampling-controls"
+            open={mobileControlSection === "sampling"}
+            onOpen={() => setMobileControlSection("sampling")}
+          >
+              <div className="field-grid">
+                <NumberField
+                  label="x minimum"
+                  value={config.xMin}
+                  step={0.5}
+                  onChange={setValue("xMin")}
+                />
+                <NumberField
+                  label="x maximum"
+                  value={config.xMax}
+                  step={0.5}
+                  onChange={setValue("xMax")}
+                />
+              </div>
+              <SliderField
+                label="Total normal points"
+                value={config.samples}
+                min={4}
+                max={500}
+                onChange={setValue("samples")}
+              />
+              <SliderField label="Test fraction (%)" value={config.testFraction} min={10} max={50} step={5} onChange={setValue("testFraction")} />
+              <p className="field-note">{config.samples + config.outliers} generated points in total (regular + outliers), split into training and test. Added training points are extra.</p>
           </ControlSection>
 
           <ControlSection
