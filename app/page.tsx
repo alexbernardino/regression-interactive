@@ -812,7 +812,6 @@ export default function Home() {
     undefined,
     createInitialLabState,
   );
-  const [mobileView, setMobileView] = useState<"data" | "parameters">("data");
   const [mobileControlSection, setMobileControlSection] = useState<
     "sampling" | "truth" | "outliers" | "regularization"
   >("sampling");
@@ -869,43 +868,10 @@ export default function Home() {
           aria-label="Live regression visualization"
         >
           <div className="mobile-stage-actions">
-            <div className="mobile-view-tabs" role="tablist" aria-label="Plot view">
-              <button
-                id="mobile-data-tab"
-                type="button"
-                role="tab"
-                aria-selected={mobileView === "data"}
-                aria-controls="mobile-plot-panel"
-                onClick={() => setMobileView("data")}
-              >
-                Data view
-              </button>
-              <button
-                id="mobile-parameters-tab"
-                type="button"
-                role="tab"
-                aria-selected={mobileView === "parameters"}
-                aria-controls="mobile-plot-panel"
-                onClick={() => setMobileView("parameters")}
-              >
-                Parameter space
-              </button>
+            <div className="mobile-stage-title">
+              <span>Live comparison</span>
+              <strong>Data &amp; parameter space</strong>
             </div>
-            <button
-              className="mobile-fit-axes"
-              type="button"
-              onClick={() =>
-                mobileView === "data"
-                  ? setDataAxes(fitDataAxes(result))
-                  : setParameterAxes(fitParameterAxes(result))
-              }
-              aria-label={`Fit axes to the ${
-                mobileView === "data" ? "data" : "parameter"
-              } plot`}
-              title="Fit axes"
-            >
-              Fit
-            </button>
             <button
               className="mobile-resample"
               type="button"
@@ -918,38 +884,55 @@ export default function Home() {
             </button>
           </div>
 
-          <div
-            className={`mobile-plot-frame mobile-${mobileView}-view`}
-            id="mobile-plot-panel"
-            role="tabpanel"
-            aria-labelledby={
-              mobileView === "data"
-                ? "mobile-data-tab"
-                : "mobile-parameters-tab"
-            }
-          >
-            {mobileView === "data" ? (
-              <RegressionPlot result={result} axes={dataAxes} />
-            ) : (
-              <ParameterPlot result={result} axes={parameterAxes} />
-            )}
-          </div>
-
-          <div className="mobile-plot-caption" aria-live="polite">
-            {mobileView === "data" ? (
+          <div className="mobile-plots-grid">
+            <section className="mobile-plot-pane mobile-data-pane" aria-label="Data plot">
+              <div className="mobile-plot-heading">
+                <strong>Data</strong>
+                <button
+                  className="mobile-fit-axes"
+                  type="button"
+                  onClick={() => setDataAxes(fitDataAxes(result))}
+                  aria-label="Fit axes to the data plot"
+                >
+                  Fit axes
+                </button>
+              </div>
+              <div className="mobile-plot-frame">
+                <RegressionPlot result={result} axes={dataAxes} />
+              </div>
+              <div className="mobile-plot-caption">
               <div className="legend" aria-label="Data plot legend">
                 <span><i className="legend-line truth" />Truth</span>
                 <span><i className="legend-line fit" />Fit</span>
                 <span><i className="legend-dot sample" />Sample</span>
                 <span><i className="legend-dot outlier" />Outlier</span>
               </div>
-            ) : (
-              <div className="parameter-legend" aria-label="Parameter plot legend">
+              </div>
+            </section>
+
+            <section className="mobile-plot-pane mobile-parameter-pane" aria-label="Parameter-space plot">
+              <div className="mobile-plot-heading">
+                <strong>Parameters</strong>
+                <button
+                  className="mobile-fit-axes"
+                  type="button"
+                  onClick={() => setParameterAxes(fitParameterAxes(result))}
+                  aria-label="Fit axes to the parameter-space plot"
+                >
+                  Fit axes
+                </button>
+              </div>
+              <div className="mobile-plot-frame">
+                <ParameterPlot result={result} axes={parameterAxes} />
+              </div>
+              <div className="mobile-plot-caption">
+                <div className="parameter-legend" aria-label="Parameter plot legend">
                 <span><i className="legend-dot parameter-truth" />Truth</span>
                 <span><i className="legend-dot parameter-estimate" />Estimate</span>
                 <span>68% / 95% covariance</span>
+                </div>
               </div>
-            )}
+            </section>
           </div>
 
           <div className="mobile-metrics" aria-label="Live regression metrics">

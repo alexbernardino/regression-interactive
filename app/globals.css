@@ -1077,43 +1077,42 @@ legend span {
   }
 
   .mobile-stage-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 42px 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 7px;
   }
 
-  .mobile-view-tabs {
-    display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
-    padding: 3px;
-    border: 1px solid var(--line);
-    border-radius: 11px;
-    background: #efebe3;
+  .mobile-stage-title {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
-  .mobile-view-tabs button,
+  .mobile-stage-title span {
+    color: var(--blue);
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 8px;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mobile-stage-title strong {
+    margin-top: 2px;
+    font-size: 13px;
+  }
+
   .mobile-fit-axes,
   .mobile-resample {
-    min-height: 38px;
+    min-height: 30px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 7px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 760;
   }
 
-  .mobile-view-tabs button {
-    color: var(--muted);
-    background: transparent;
-  }
-
-  .mobile-view-tabs button[aria-selected="true"] {
-    color: white;
-    background: var(--ink);
-    box-shadow: 0 3px 9px rgba(23, 32, 51, 0.18);
-  }
-
-  .mobile-view-tabs button:focus-visible,
   .mobile-fit-axes:focus-visible,
   .mobile-resample:focus-visible {
     outline: 3px solid rgba(40, 84, 197, 0.3);
@@ -1121,6 +1120,8 @@ legend span {
   }
 
   .mobile-resample {
+    width: 38px;
+    flex: 0 0 38px;
     color: white;
     background: var(--blue);
     font-family: var(--font-geist-mono), monospace;
@@ -1129,10 +1130,11 @@ legend span {
   }
 
   .mobile-fit-axes {
+    padding: 4px 7px;
     color: var(--blue);
     background: var(--blue-soft);
     font-family: var(--font-geist-mono), monospace;
-    font-size: 10px;
+    font-size: 8px;
   }
 
   .mobile-resample:disabled {
@@ -1140,12 +1142,46 @@ legend span {
     cursor: not-allowed;
   }
 
+  .mobile-plots-grid {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(118px, 0.75fr);
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .mobile-plot-pane {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 5px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fffefa;
+  }
+
+  .mobile-plot-heading {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    padding: 0 2px 3px;
+  }
+
+  .mobile-plot-heading strong {
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .mobile-plot-frame {
-    height: clamp(190px, 27vh, 235px);
+    height: clamp(145px, 22vh, 185px);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 4px;
     overflow: hidden;
   }
 
@@ -1155,16 +1191,12 @@ legend span {
     height: 100%;
   }
 
-  .mobile-parameters-view .parameter-plot {
-    max-width: 255px;
-  }
-
   .mobile-plot-caption {
-    min-height: 22px;
+    min-height: 25px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: -2px 0 4px;
+    margin: 0;
   }
 
   .mobile-plot-caption .legend,
@@ -1369,10 +1401,169 @@ legend span {
     padding-inline: 9px;
   }
 
-  .mobile-plot-frame {
-    height: clamp(180px, 25vh, 215px);
+  .mobile-plots-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(105px, 0.72fr);
+    gap: 4px;
   }
 
+  .mobile-plot-pane {
+    padding: 3px;
+  }
+
+  .mobile-plot-frame {
+    height: clamp(135px, 20vh, 165px);
+  }
+
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (max-width: 1024px) {
+  body {
+    overflow: hidden;
+  }
+
+  main {
+    width: calc(100% - 12px);
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .site-header {
+    min-height: 46px;
+    flex: 0 0 46px;
+  }
+
+  .brand {
+    gap: 7px;
+    font-size: 12px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 38px;
+  }
+
+  .brand small,
+  .header-context,
+  .lesson-tag {
+    display: none;
+  }
+
+  .lab {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(245px, 34vw) minmax(0, 1fr);
+    grid-template-areas: "controls plots";
+    margin: 5px 0 7px;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  .controls {
+    grid-area: controls;
+    min-height: 0;
+    order: initial;
+    padding: 10px 12px;
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .controls-heading {
+    padding-bottom: 6px;
+  }
+
+  .controls-heading h2 {
+    font-size: 16px;
+  }
+
+  .controls-heading .step-label {
+    margin-bottom: 3px;
+    font-size: 8px;
+  }
+
+  .desktop-section-heading {
+    display: none;
+  }
+
+  .mobile-section-toggle {
+    min-height: 39px;
+    display: flex;
+    padding: 7px 9px;
+    cursor: pointer;
+  }
+
+  .control-section {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fffefa;
+  }
+
+  .control-section + .control-section {
+    margin-top: 5px;
+  }
+
+  .control-section:not(.is-open) > .control-section-body {
+    display: none;
+  }
+
+  .control-section-body {
+    padding: 0 8px 8px;
+  }
+
+  .mobile-visualization {
+    position: static;
+    grid-area: plots;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 7px 8px;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .mobile-plots-grid {
+    flex: 0 0 auto;
+    grid-template-columns: 1fr;
+    gap: 5px;
+    margin-top: 5px;
+  }
+
+  .mobile-plot-pane {
+    min-height: 150px;
+    padding: 3px 5px;
+  }
+
+  .mobile-plot-heading {
+    min-height: 24px;
+  }
+
+  .mobile-plot-frame {
+    height: 118px;
+  }
+
+  .mobile-plot-caption {
+    min-height: 18px;
+  }
+
+  .mobile-metrics {
+    position: sticky;
+    bottom: 0;
+    margin-top: 5px;
+    padding-top: 4px;
+    background: rgba(255, 253, 248, 0.97);
+  }
+
+  .mobile-metrics > div {
+    padding: 4px 3px;
+  }
+
+  .workspace {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
