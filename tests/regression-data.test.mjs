@@ -57,3 +57,13 @@ test("evaluation uses each set's own mean and reports undefined R² honestly", (
   assert.equal(metrics.r2, .5);
   assert.ok(Number.isNaN(evaluate([{ x: 1, y: 2 }], 1, 0).r2));
 });
+
+test("outlier test fraction supports both endpoints without changing normal points", () => {
+  const initial = createInitialLabState();
+  for (const fraction of [0, 40, 100]) {
+    const state = updateLabState(initial, { type: "set-value", key: "outlierTestFraction", value: fraction });
+    assert.equal(snapshot(state.result.points.filter(p => !p.outlier)), snapshot(initial.result.points.filter(p => !p.outlier)));
+    assert.equal(state.result.points.filter(p => p.outlier && !p.training).length, Math.round(initial.config.outliers * fraction / 100));
+    assert.equal(state.result.points.filter(p => p.outlier && p.training).length, initial.config.outliers - Math.round(initial.config.outliers * fraction / 100));
+  }
+});

@@ -15,6 +15,7 @@ type Experiment = {
   l1: number;
   l2: number;
   testFraction: number;
+  outlierTestFraction: number;
 };
 
 type Point = {
@@ -71,6 +72,7 @@ const DEFAULTS: Experiment = {
   l1: 0,
   l2: 0,
   testFraction: 30,
+  outlierTestFraction: 30,
 };
 
 const round = (value: number, digits = 3) =>
@@ -121,7 +123,7 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
   }
 
   const outlierRandom = seededRandom((training ? 37139 : 192811) + (training ? run : testRun) * 7919);
-  const testOutliers = Math.round(config.outliers * config.testFraction / 100);
+  const testOutliers = Math.round(config.outliers * config.outlierTestFraction / 100);
   for (let index = 0; index < (training ? config.outliers - testOutliers : testOutliers); index += 1) {
     const x = config.xMin + outlierRandom() * xSpan;
     const y =
@@ -193,6 +195,7 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
 function validateExperiment(config: Experiment) {
   if (!Object.values(config).every(Number.isFinite)) return "Enter finite values for every parameter.";
   if (config.testFraction < 10 || config.testFraction > 50) return "Choose a test fraction between 10% and 50%.";
+  if (config.outlierTestFraction < 0 || config.outlierTestFraction > 100) return "Choose an outlier test fraction between 0% and 100%.";
   if (config.xMax <= config.xMin) {
     return "The maximum x value must be greater than the minimum.";
   }
@@ -269,7 +272,7 @@ function updateLabState(state: LabState, action: LabAction): LabState {
   }
 
   const config = { ...state.config, [action.key]: action.value };
-  const removed = ["samples", "outliers", "testFraction"].includes(action.key) ? [] : state.removed;
+  const removed = ["samples", "outliers", "testFraction", "outlierTestFraction"].includes(action.key) ? [] : state.removed;
   return {
     ...state,
     config,
@@ -1072,7 +1075,7 @@ export default function Home() {
 
           <ControlSection
             number="01"
-            title="Sampling window"
+            title="Normal points"
             id="sampling-controls"
             open={mobileControlSection === "sampling"}
             onOpen={() => setMobileControlSection("sampling")}
@@ -1092,13 +1095,13 @@ export default function Home() {
                 />
               </div>
               <SliderField
-                label="Total regular points"
+                label="Total normal points"
                 value={config.samples}
                 min={4}
                 max={500}
                 onChange={setValue("samples")}
               />
-              <SliderField label="Test fraction" value={config.testFraction} min={10} max={50} step={5} onChange={setValue("testFraction")} />
+              <SliderField label="Test fraction (%)" value={config.testFraction} min={10} max={50} step={5} onChange={setValue("testFraction")} />
               <p className="field-note">{config.samples + config.outliers} generated points in total (regular + outliers), split into training and test. Added training points are extra.</p>
           </ControlSection>
 
@@ -1167,8 +1170,12 @@ export default function Home() {
                 onChange={setValue("outliers")}
               />
               <p className="field-note">
-                Outlier x values use the sampling window; their y values are
+                Outlier x values use the range in Normal points; their y values are
                 uniform in the range above.
+              </p>
+              <SliderField label="Outlier test fraction (%)" value={config.outlierTestFraction} min={0} max={100} step={1} onChange={setValue("outlierTestFraction")} />
+              <p className="field-note">
+                {config.outliers - Math.round(config.outliers * config.outlierTestFraction / 100)} training outliers · {Math.round(config.outliers * config.outlierTestFraction / 100)} test outliers. Independent of the normal-point split.
               </p>
           </ControlSection>
 
