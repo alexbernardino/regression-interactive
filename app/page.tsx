@@ -1013,6 +1013,10 @@ export default function Home() {
               </div>
               <div className="mobile-plot-frame">
                 <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+                <div className="plot-r2-readout" aria-label="Training and test R squared">
+                  <span>Train R² <strong>{round(result.r2)}</strong></span>
+                  <span>Test R² <strong>{round(result.testR2)}</strong></span>
+                </div>
               </div>
               {queryReadout}
               <div className="mobile-plot-caption">
@@ -1050,7 +1054,6 @@ export default function Home() {
             </section>
           </div>
 
-          {performance}
         </section>
 
         <aside className="controls">

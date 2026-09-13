@@ -1,6 +1,22 @@
 @import "tailwindcss";
 
 .plot-editor { flex-shrink: 0; margin: 5px 0; }
+.mobile-data-pane .mobile-plot-frame { position: relative; }
+.plot-r2-readout {
+  position: absolute;
+  top: 4px;
+  left: 8%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: rgba(255, 253, 248, .9);
+  color: var(--ink);
+  font: 10px var(--font-geist-mono), monospace;
+  pointer-events: none;
+}
+.plot-r2-readout span { white-space: nowrap; }
 .plot-editor p { margin: 4px 0; font-size: 11px; color: var(--muted); }
 .results-grid.equations-only { grid-template-columns: 1fr; }
 .mobile-metrics.coefficients-only { grid-template-columns: 1fr 1fr; }
