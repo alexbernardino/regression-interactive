@@ -1051,16 +1051,6 @@ export default function Home() {
           </div>
 
           {performance}
-          <div className="mobile-metrics coefficients-only" aria-label="Estimated coefficients">
-            <div>
-              <span>Slope m̂</span>
-              <strong>{round(result.fittedSlope)}</strong>
-            </div>
-            <div>
-              <span>Intercept b̂</span>
-              <strong>{round(result.fittedIntercept)}</strong>
-            </div>
-          </div>
         </section>
 
         <aside className="controls">
