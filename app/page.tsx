@@ -981,16 +981,20 @@ export default function Home() {
               <span>Live comparison</span>
               <strong>Data &amp; parameter space</strong>
             </div>
+            <div className="mobile-resample-group" role="group" aria-label="Resample data">
             <button
               className="mobile-resample"
               type="button"
               onClick={resample}
               disabled={Boolean(error)}
-              aria-label="Resample data"
-              title="Resample data"
+              aria-label="Resample all data"
+              title="Resample all data"
             >
-              ↻
+              All ↻
             </button>
+            <button className="mobile-resample" type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "training" })} aria-label="Resample training only" title="Resample training only">Train ↻</button>
+            <button className="mobile-resample" type="button" disabled={Boolean(error)} onClick={() => dispatch({ type: "resample", subset: "test" })} aria-label="Resample test only" title="Resample test only">Test ↻</button>
+            </div>
           </div>
 
           {editor}

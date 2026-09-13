@@ -1102,6 +1102,7 @@ legend span {
 
   .mobile-stage-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 7px;
@@ -1164,6 +1165,21 @@ legend span {
   .mobile-resample:disabled {
     background: #9298a3;
     cursor: not-allowed;
+  }
+
+  .mobile-resample-group {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .mobile-resample-group .mobile-resample {
+    width: auto;
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .mobile-plots-grid {
