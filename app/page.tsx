@@ -1230,7 +1230,7 @@ export default function Home() {
                 hint="λ₁"
                 value={config.l1}
                 min={0}
-                max={5}
+                max={100}
                 step={0.05}
                 onChange={setValue("l1")}
               />
@@ -1239,7 +1239,7 @@ export default function Home() {
                 hint="λ₂"
                 value={config.l2}
                 min={0}
-                max={5}
+                max={100}
                 step={0.05}
                 onChange={setValue("l2")}
               />
