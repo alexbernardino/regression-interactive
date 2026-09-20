@@ -739,6 +739,8 @@ function ParameterPlot({
   );
   const eigenvalue1 = Math.max((trace + discriminant) / 2, 0);
   const eigenvalue2 = Math.max((trace - discriminant) / 2, 0);
+  const formatEigenvalue = (value: number) => value === 0 ? "0"
+    : value < 0.001 || value >= 10000 ? value.toExponential(2) : value.toPrecision(3);
   const angle = 0.5 * Math.atan2(2 * slopeIntercept, difference);
 
   const ellipse = (chiSquareRadius: number) =>
@@ -911,6 +913,14 @@ function ParameterPlot({
         />
       </g>
 
+      <g pointerEvents="none" aria-label={`Covariance eigenvalues: largest ${formatEigenvalue(eigenvalue1)}, smallest ${formatEigenvalue(eigenvalue2)}`}>
+        <title>Eigenvalues of the simulated parameter covariance: variances along the ellipse's principal directions, not regularization strengths.</title>
+        <rect x={margin.left + 8} y={margin.top + 8} width="232" height="58" rx="6" fill="#fffdf8" fillOpacity="0.94" stroke="#d7d0c2" />
+        <text x={margin.left + 18} y={margin.top + 29} fill="#172139" fontSize="14" fontWeight="700">Covariance eigenvalues</text>
+        <text x={margin.left + 18} y={margin.top + 51} fill="#172139" fontSize="14">
+          Max: {formatEigenvalue(eigenvalue1)} · Min: {formatEigenvalue(eigenvalue2)}
+        </text>
+      </g>
       <text
         className="axis-label"
         x={margin.left + plotWidth / 2}
