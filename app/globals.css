@@ -129,7 +129,18 @@ main {
   margin: 0;
   accent-color: var(--ink);
 }
-.mobile-parameter-pane .mobile-plot-heading { flex-wrap: wrap; gap: 6px; }
+.axes-controls {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.axes-controls button { white-space: nowrap; }
+.mobile-plot-pane .mobile-plot-heading { flex-wrap: wrap; gap: 6px; }
+.mobile-plot-pane .axes-controls { gap: 5px; }
+.mobile-plot-pane .axes-controls .parameter-autofit { font-size: 9px; gap: 3px; }
+.mobile-plot-pane .axes-controls .fit-axes-button { font-size: 10px; padding: 4px 6px; }
 
 .brand .version-stamp {
   display: block;

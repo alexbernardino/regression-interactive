@@ -958,6 +958,11 @@ export default function Home() {
     fitParameterAxes(result),
   );
   const [autoFitParameters, setAutoFitParameters] = useState(false);
+  const [autoFitData, setAutoFitData] = useState(false);
+  const displayedDataAxes = useMemo(
+    () => autoFitData ? fitDataAxes(result) : dataAxes,
+    [autoFitData, result, dataAxes],
+  );
   const displayedParameterAxes = useMemo(
     () => autoFitParameters ? fitParameterAxes(result) : parameterAxes,
     [autoFitParameters, result, parameterAxes],
@@ -971,6 +976,26 @@ export default function Home() {
     Auto-fit axes
   </label>;
   const error = validateExperiment(config);
+  const dataAxisControls = <div className="axes-controls">
+    <label className="parameter-autofit">
+      <input type="checkbox" checked={autoFitData} onChange={event => {
+        if (!event.target.checked) setDataAxes(displayedDataAxes);
+        setAutoFitData(event.target.checked);
+      }} />
+      Auto-fit axes
+    </label>
+    <button className="fit-axes-button" type="button" onClick={() => setDataAxes(fitDataAxes(result))} aria-label="Fit axes to the data plot">Fit axes</button>
+  </div>;
+  const parameterAxisControls = <div className="axes-controls">
+    {autoFitControl}
+    <button className="fit-axes-button" type="button" onClick={() => setParameterAxes(fitParameterAxes(result))} aria-label="Fit axes to the parameter-space plot">Fit axes</button>
+  </div>;
+  const parameterLegend = <div className="parameter-legend" aria-label="Parameter plot legend">
+    <span><i className="legend-dot parameter-truth" />Truth</span>
+    <span><i className="legend-dot parameter-estimate" />Estimate</span>
+    <span>＋ Simulation mean</span>
+    <span title="Sample covariance of 100 noise refits at fixed training x, with manual points and outliers held fixed. Gaussian-equivalent scales, not guaranteed confidence coverage.">Ellipses: 68% / 95% scales</span>
+  </div>;
 
   const setValue = (key: keyof Experiment) => (value: number) =>
     dispatch({ type: "set-value", key, value });
@@ -1068,17 +1093,10 @@ export default function Home() {
             <section className="mobile-plot-pane mobile-data-pane" aria-label="Data plot">
               <div className="mobile-plot-heading">
                 <strong>Data</strong>
-                <button
-                  className="mobile-fit-axes"
-                  type="button"
-                  onClick={() => setDataAxes(fitDataAxes(result))}
-                  aria-label="Fit axes to the data plot"
-                >
-                  Fit axes
-                </button>
+                {dataAxisControls}
               </div>
               <div className="mobile-plot-frame">
-                <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+                <RegressionPlot result={result} axes={displayedDataAxes} {...plotTools} />
                 {r2Readout}
               </div>
               {queryReadout}
@@ -1095,27 +1113,13 @@ export default function Home() {
             <section className="mobile-plot-pane mobile-parameter-pane" aria-label="Parameter-space plot">
               <div className="mobile-plot-heading">
                 <strong>Parameters</strong>
-                {autoFitControl}
-                <button
-                  className="mobile-fit-axes"
-                  type="button"
-                  onClick={() => setParameterAxes(fitParameterAxes(result))}
-                  aria-label="Fit axes to the parameter-space plot"
-                >
-                  Fit axes
-                </button>
+                {parameterAxisControls}
               </div>
               <div className="mobile-plot-frame">
                 <ParameterPlot result={result} axes={displayedParameterAxes} />
               </div>
               <div className="mobile-plot-caption">
-                <div className="parameter-legend" aria-label="Parameter plot legend">
-                <span><i className="legend-dot parameter-truth" />Truth</span>
-                <span><i className="legend-dot parameter-estimate" />Estimate</span>
-                <span>＋ Simulation mean · 100 refits</span>
-                <span>Covariance ellipse · Gaussian 68% / 95% scales, not guaranteed coverage</span>
-                <span>Fixed training x, manual points and outliers; fresh noise on normal points.</span>
-                </div>
+                {parameterLegend}
               </div>
             </section>
           </div>
@@ -1279,7 +1283,7 @@ export default function Home() {
             </p>
           ) : null}
 
-          <p className="field-note">Added points stay fixed. Resampling training restores removed generated points. Axes stay fixed; use Fit axes when needed.</p>
+          <p className="field-note">Added points stay fixed. Resampling training restores removed generated points. Use Fit axes to reframe, or enable Auto-fit axes.</p>
         </aside>
 
         <div className="workspace">
@@ -1300,21 +1304,14 @@ export default function Home() {
                     <span><i className="legend-dot sample" />Sample</span>
                     <span><i className="legend-dot outlier" />Outlier</span>
                   </div>
-                  <button
-                    className="fit-axes-button"
-                    type="button"
-                    onClick={() => setDataAxes(fitDataAxes(result))}
-                    title="Fit the axes to the current data"
-                  >
-                    Fit axes
-                  </button>
+                  {dataAxisControls}
                 </div>
               </div>
 
               {resampleControls}
               {editor}
               <div className="desktop-data-frame">
-                <RegressionPlot result={result} axes={dataAxes} {...plotTools} />
+                <RegressionPlot result={result} axes={displayedDataAxes} {...plotTools} />
                 {r2Readout}
               </div>
               {queryReadout}
@@ -1328,34 +1325,11 @@ export default function Home() {
                   <h2>Estimation uncertainty</h2>
                 </div>
                 <div className="parameter-actions">
-                  {autoFitControl}
-                  <div
-                    className="parameter-legend"
-                    aria-label="Parameter plot legend"
-                  >
-                    <span><i className="legend-dot parameter-truth" />Truth</span>
-                    <span><i className="legend-dot parameter-estimate" />Estimate</span>
-                  </div>
-                  <button
-                    className="fit-axes-button"
-                    type="button"
-                    onClick={() =>
-                      setParameterAxes(fitParameterAxes(result))
-                    }
-                    title="Fit the axes to the estimate and covariance"
-                  >
-                    Fit axes
-                  </button>
+                  {parameterAxisControls}
                 </div>
               </div>
               <ParameterPlot result={result} axes={displayedParameterAxes} />
-              <p className="covariance-note">
-                100 noise refits · ＋ simulated mean · fixed training x, manual
-                points and outliers. Ellipses summarize empirical covariance
-                around the simulated mean, not uncertainty in that mean.
-                Gaussian 68% / 95% scales do not guarantee coverage, especially
-                with L1. {autoFitParameters ? "Axes fit automatically." : "Axes are locked; use Fit axes to reframe."}
-              </p>
+              {parameterLegend}
             </div>
           </div>
 
