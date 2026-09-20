@@ -957,6 +957,19 @@ export default function Home() {
   const [parameterAxes, setParameterAxes] = useState<ParameterAxes>(() =>
     fitParameterAxes(result),
   );
+  const [autoFitParameters, setAutoFitParameters] = useState(false);
+  const displayedParameterAxes = useMemo(
+    () => autoFitParameters ? fitParameterAxes(result) : parameterAxes,
+    [autoFitParameters, result, parameterAxes],
+  );
+  const autoFitControl = <label className="parameter-autofit">
+    <input type="checkbox" checked={autoFitParameters} onChange={event => {
+      // Freeze the currently visible bounds when automatic fitting is disabled.
+      if (!event.target.checked) setParameterAxes(displayedParameterAxes);
+      setAutoFitParameters(event.target.checked);
+    }} />
+    Auto-fit axes
+  </label>;
   const error = validateExperiment(config);
 
   const setValue = (key: keyof Experiment) => (value: number) =>
@@ -1082,6 +1095,7 @@ export default function Home() {
             <section className="mobile-plot-pane mobile-parameter-pane" aria-label="Parameter-space plot">
               <div className="mobile-plot-heading">
                 <strong>Parameters</strong>
+                {autoFitControl}
                 <button
                   className="mobile-fit-axes"
                   type="button"
@@ -1092,7 +1106,7 @@ export default function Home() {
                 </button>
               </div>
               <div className="mobile-plot-frame">
-                <ParameterPlot result={result} axes={parameterAxes} />
+                <ParameterPlot result={result} axes={displayedParameterAxes} />
               </div>
               <div className="mobile-plot-caption">
                 <div className="parameter-legend" aria-label="Parameter plot legend">
@@ -1314,6 +1328,7 @@ export default function Home() {
                   <h2>Estimation uncertainty</h2>
                 </div>
                 <div className="parameter-actions">
+                  {autoFitControl}
                   <div
                     className="parameter-legend"
                     aria-label="Parameter plot legend"
@@ -1333,13 +1348,13 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-              <ParameterPlot result={result} axes={parameterAxes} />
+              <ParameterPlot result={result} axes={displayedParameterAxes} />
               <p className="covariance-note">
                 100 noise refits · ＋ simulated mean · fixed training x, manual
                 points and outliers. Ellipses summarize empirical covariance
                 around the simulated mean, not uncertainty in that mean.
                 Gaussian 68% / 95% scales do not guarantee coverage, especially
-                with L1. Axes remain locked; use Fit axes to reframe.
+                with L1. {autoFitParameters ? "Axes fit automatically." : "Axes are locked; use Fit axes to reframe."}
               </p>
             </div>
           </div>

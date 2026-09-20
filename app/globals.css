@@ -115,6 +115,22 @@ main {
   gap: 12px;
 }
 
+.parameter-autofit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.parameter-autofit input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+.mobile-parameter-pane .mobile-plot-heading { flex-wrap: wrap; gap: 6px; }
+
 .brand .version-stamp {
   display: block;
   margin-top: 3px;
