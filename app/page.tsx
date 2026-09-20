@@ -37,6 +37,9 @@ type Result = {
   testRmse: number;
   testR2: number;
   covariance: {
+    meanSlope: number;
+    meanIntercept: number;
+    simulations: number;
     slopeVariance: number;
     interceptVariance: number;
     slopeIntercept: number;
@@ -105,6 +108,36 @@ function evaluate(points: Point[], slope: number, intercept: number) {
   return { rmse: Math.sqrt(error / points.length), r2: points.length < 2 || spread === 0 ? NaN : 1 - error / spread };
 }
 
+function simulateCovariance(points: Point[], config: Experiment) {
+  const simulations = 100;
+  const random = seededRandom(720193);
+  const n = points.length;
+  const xMean = points.reduce((sum, p) => sum + p.x, 0) / n;
+  const sxx = points.reduce((sum, p) => sum + (p.x - xMean) ** 2, 0) / n;
+  const estimates = Array.from({ length: simulations }, () => {
+    const ys = points.map(p => {
+      const noise = gaussianRandom(random) * Math.sqrt(config.noiseVariance);
+      return p.manual || p.outlier ? p.y : config.slope * p.x + config.intercept + noise;
+    });
+    const yMean = ys.reduce((sum, y) => sum + y, 0) / n;
+    const cross = points.reduce((sum, p, i) => sum + (p.x - xMean) * (ys[i] - yMean), 0) / n;
+    const slope = sxx + config.l2 > 0
+      ? Math.sign(cross) * Math.max(Math.abs(cross) - config.l1, 0) / (sxx + config.l2) : 0;
+    return { slope, intercept: yMean - slope * xMean };
+  });
+  // Center relative to the first sample to preserve exact zero variance when
+  // every realization is identical (e.g. zero noise or fully thresholded slope).
+  const meanSlope = estimates[0].slope + estimates.reduce((s, e) => s + e.slope - estimates[0].slope, 0) / simulations;
+  const meanIntercept = estimates[0].intercept + estimates.reduce((s, e) => s + e.intercept - estimates[0].intercept, 0) / simulations;
+  return {
+    meanSlope, meanIntercept, simulations,
+    noiseVariance: config.noiseVariance,
+    slopeVariance: estimates.reduce((s, e) => s + (e.slope - meanSlope) ** 2, 0) / (simulations - 1),
+    interceptVariance: estimates.reduce((s, e) => s + (e.intercept - meanIntercept) ** 2, 0) / (simulations - 1),
+    slopeIntercept: estimates.reduce((s, e) => s + (e.slope - meanSlope) * (e.intercept - meanIntercept), 0) / (simulations - 1),
+  };
+}
+
 function runRegression(config: Experiment, run: number, testRun = run, manual: Point[] = [], removed: string[] = []): Result {
   const points: Point[] = [];
   const xSpan = config.xMax - config.xMin;
@@ -165,16 +198,7 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
     (total, point) => total + (point.y - yMean) ** 2,
     0,
   );
-  // Conditional sampling covariance for a slope-only ridge penalty.
-  // Use the known generating noise: ridge residuals also contain shrinkage bias.
-  // For L1 or contaminated/manual data this is a clean-model reference only.
-  const noiseVariance = config.noiseVariance;
-  const regularizedDenominator = denominator + points.length * config.l2;
-  const slopeVariance =
-    regularizedDenominator > 0 ? (noiseVariance * denominator) / regularizedDenominator ** 2 : 0;
-  const interceptVariance =
-    noiseVariance / points.length + xMean ** 2 * slopeVariance;
-  const slopeIntercept = -xMean * slopeVariance;
+  const covariance = simulateCovariance(points, config);
 
   return {
     config: { ...config },
@@ -185,12 +209,7 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
     r2: totalSum === 0 ? NaN : 1 - residualSum / totalSum,
     testRmse: evaluate(allPoints.filter(point => !point.training), fittedSlope, fittedIntercept).rmse,
     testR2: evaluate(allPoints.filter(point => !point.training), fittedSlope, fittedIntercept).r2,
-    covariance: {
-      slopeVariance,
-      interceptVariance,
-      slopeIntercept,
-      noiseVariance,
-    },
+    covariance,
     run,
   };
 }
@@ -445,19 +464,23 @@ function fitParameterAxes(result: Result): ParameterAxes {
   );
   const rawSlopeMin = Math.min(
     result.config.slope,
-    result.fittedSlope - slopeRadius95,
+    result.fittedSlope,
+    result.covariance.meanSlope - slopeRadius95,
   );
   const rawSlopeMax = Math.max(
     result.config.slope,
-    result.fittedSlope + slopeRadius95,
+    result.fittedSlope,
+    result.covariance.meanSlope + slopeRadius95,
   );
   const rawInterceptMin = Math.min(
     result.config.intercept,
-    result.fittedIntercept - interceptRadius95,
+    result.fittedIntercept,
+    result.covariance.meanIntercept - interceptRadius95,
   );
   const rawInterceptMax = Math.max(
     result.config.intercept,
-    result.fittedIntercept + interceptRadius95,
+    result.fittedIntercept,
+    result.covariance.meanIntercept + interceptRadius95,
   );
   const commonSpan =
     Math.max(rawSlopeMax - rawSlopeMin, rawInterceptMax - rawInterceptMin, 1) *
@@ -727,11 +750,11 @@ function ParameterPlot({
         chiSquareRadius * Math.sqrt(eigenvalue2) * Math.sin(theta);
       return {
         slope:
-          result.fittedSlope +
+          result.covariance.meanSlope +
           major * Math.cos(angle) -
           minor * Math.sin(angle),
         intercept:
-          result.fittedIntercept +
+          result.covariance.meanIntercept +
           major * Math.sin(angle) +
           minor * Math.cos(angle),
       };
@@ -779,11 +802,10 @@ function ParameterPlot({
     >
       <title id="parameter-title">Slope and intercept parameter space</title>
       <desc id="parameter-description">
-        Ground-truth and estimated parameter points with sampling covariance
-        ellipses based on the configured noise variance. Gaussian 68% and 95%
-        contour scales, centered at the estimate. Under regularization these
-        are not confidence regions for the ground truth. With L1 or contaminated
-        data they are clean-model ridge reference ellipses.
+        Ground truth, current estimate and simulation mean. Ellipses summarize
+        the sample covariance of 100 refits with fixed training x values and
+        fresh Gaussian noise on normal points. Manual points and outliers stay
+        fixed. Gaussian-equivalent 68% and 95% scales are not coverage guarantees.
       </desc>
       <defs>
         <clipPath id={clipId}>
@@ -863,6 +885,11 @@ function ParameterPlot({
 
         <path className="ellipse ellipse-95" d={pathFor(ellipse95)} />
         <path className="ellipse ellipse-68" d={pathFor(ellipse68)} />
+
+        <path
+          d={`M ${scaleX(result.covariance.meanSlope) - 7} ${scaleY(result.covariance.meanIntercept)} h 14 M ${scaleX(result.covariance.meanSlope)} ${scaleY(result.covariance.meanIntercept) - 7} v 14`}
+          stroke="#172139" strokeWidth="3"
+        ><title>Mean of 100 simulated estimates: slope {round(result.covariance.meanSlope)}, intercept {round(result.covariance.meanIntercept)}</title></path>
 
         <circle
           className="estimated-parameter"
@@ -1058,7 +1085,9 @@ export default function Home() {
                 <div className="parameter-legend" aria-label="Parameter plot legend">
                 <span><i className="legend-dot parameter-truth" />Truth</span>
                 <span><i className="legend-dot parameter-estimate" />Estimate</span>
-                <span>Sampling covariance (68% / 95% scales)</span>
+                <span>＋ Simulation mean · 100 refits</span>
+                <span>Covariance ellipse · Gaussian 68% / 95% scales, not guaranteed coverage</span>
+                <span>Fixed training x, manual points and outliers; fresh noise on normal points.</span>
                 </div>
               </div>
             </section>
@@ -1293,13 +1322,11 @@ export default function Home() {
               </div>
               <ParameterPlot result={result} axes={parameterAxes} />
               <p className="covariance-note">
-                Configured σ² · Gaussian 68% / 95% scales · locked axes.
-                {result.config.l1 > 0 || result.points.some(point => point.training && (point.outlier || point.manual))
-                  ? " Clean-model ridge reference only: L1 or added/outlier training points are not covered by this covariance model."
-                  : " Sampling spread around the estimate; bias is not included."}
-                {result.config.l1 > 0 || result.config.l2 > 0
-                  ? " Not confidence regions for the ground truth under regularization."
-                  : ""}
+                100 noise refits · ＋ simulated mean · fixed training x, manual
+                points and outliers. Ellipses summarize empirical covariance
+                around the simulated mean, not uncertainty in that mean.
+                Gaussian 68% / 95% scales do not guarantee coverage, especially
+                with L1. Axes remain locked; use Fit axes to reframe.
               </p>
             </div>
           </div>

@@ -25,16 +25,46 @@ test("ridge covariance shrinks at fixed data despite increasing fit residuals", 
     state = updateLabState(state, { type: "set-value", key: "l2", value: lambda });
     assert.equal(snapshot(state.result.points), snapshot(initial.result.points));
     const c = state.result.covariance;
-    const expected = state.config.noiseVariance * sxx / (sxx + n * lambda) ** 2;
+    const expected = initial.result.covariance.slopeVariance * (sxx / (sxx + n * lambda)) ** 2;
     assert.ok(Math.abs(c.slopeVariance - expected) < 1e-12);
     assert.ok(c.slopeVariance < previous.slopeVariance);
-    assert.ok(c.interceptVariance <= previous.interceptVariance);
-    assert.ok(Math.abs(c.slopeIntercept + mean * c.slopeVariance) < 1e-12);
+    assert.ok(c.interceptVariance >= 0);
+    assert.equal(c.simulations, 100);
     assert.equal(c.noiseVariance, initial.config.noiseVariance);
     previous = c;
   }
   assert.ok(state.result.rmse > initial.result.rmse);
-  assert.ok(Math.abs(previous.interceptVariance - initial.config.noiseVariance / n) < 1e-9);
+  assert.ok(previous.interceptVariance > 0);
+});
+
+test("L1 thresholding changes empirical covariance and simulation mean", () => {
+  const initial = createInitialLabState();
+  const after = updateLabState(initial, { type: "set-value", key: "l1", value: 1e6 });
+  assert.equal(snapshot(initial.result.points), snapshot(after.result.points));
+  assert.equal(after.result.covariance.meanSlope, 0);
+  assert.equal(after.result.covariance.slopeVariance, 0);
+  assert.equal(after.result.covariance.slopeIntercept, 0);
+  assert.ok(after.result.covariance.interceptVariance > 0);
+  assert.notEqual(initial.result.covariance.meanSlope, 0);
+});
+
+test("simulation is deterministic and its covariance is positive semidefinite", () => {
+  const first = createInitialLabState();
+  assert.equal(snapshot(first.result.covariance), snapshot(createInitialLabState().result.covariance));
+  const c = first.result.covariance;
+  assert.ok(c.slopeVariance * c.interceptVariance - c.slopeIntercept ** 2 >= -1e-12);
+  assert.equal(c.simulations, 100);
+});
+
+test("fixed outliers and manual points add no simulated variability when normal noise is zero", () => {
+  let state = updateLabState(createInitialLabState(), { type: "set-value", key: "noiseVariance", value: 0 });
+  state = updateLabState(state, { type: "set-value", key: "outliers", value: 5 });
+  state = updateLabState(state, { type: "add", x: 3, y: 100 });
+  const c = state.result.covariance;
+  assert.equal(c.slopeVariance, 0);
+  assert.equal(c.interceptVariance, 0);
+  assert.ok(Math.abs(c.meanSlope - state.result.fittedSlope) < 1e-12);
+  assert.ok(Math.abs(c.meanIntercept - state.result.fittedIntercept) < 1e-12);
 });
 
 test("zero generating noise gives zero sampling covariance even with ridge bias", () => {
