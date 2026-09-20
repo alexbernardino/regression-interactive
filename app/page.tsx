@@ -40,7 +40,7 @@ type Result = {
     slopeVariance: number;
     interceptVariance: number;
     slopeIntercept: number;
-    residualVariance: number;
+    noiseVariance: number;
   };
   run: number;
 };
@@ -165,12 +165,15 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
     (total, point) => total + (point.y - yMean) ** 2,
     0,
   );
-  const residualVariance = residualSum / Math.max(points.length - 2, 1);
+  // Conditional sampling covariance for a slope-only ridge penalty.
+  // Use the known generating noise: ridge residuals also contain shrinkage bias.
+  // For L1 or contaminated/manual data this is a clean-model reference only.
+  const noiseVariance = config.noiseVariance;
   const regularizedDenominator = denominator + points.length * config.l2;
   const slopeVariance =
-    regularizedDenominator > 0 ? (residualVariance * denominator) / regularizedDenominator ** 2 : 0;
+    regularizedDenominator > 0 ? (noiseVariance * denominator) / regularizedDenominator ** 2 : 0;
   const interceptVariance =
-    residualVariance / points.length + xMean ** 2 * slopeVariance;
+    noiseVariance / points.length + xMean ** 2 * slopeVariance;
   const slopeIntercept = -xMean * slopeVariance;
 
   return {
@@ -186,7 +189,7 @@ function runRegression(config: Experiment, run: number, testRun = run, manual: P
       slopeVariance,
       interceptVariance,
       slopeIntercept,
-      residualVariance,
+      noiseVariance,
     },
     run,
   };
@@ -776,8 +779,11 @@ function ParameterPlot({
     >
       <title id="parameter-title">Slope and intercept parameter space</title>
       <desc id="parameter-description">
-        Ground-truth and estimated parameter points with joint 68 and 95
-        percent covariance ellipses.
+        Ground-truth and estimated parameter points with sampling covariance
+        ellipses based on the configured noise variance. Gaussian 68% and 95%
+        contour scales, centered at the estimate. Under regularization these
+        are not confidence regions for the ground truth. With L1 or contaminated
+        data they are clean-model ridge reference ellipses.
       </desc>
       <defs>
         <clipPath id={clipId}>
@@ -1052,7 +1058,7 @@ export default function Home() {
                 <div className="parameter-legend" aria-label="Parameter plot legend">
                 <span><i className="legend-dot parameter-truth" />Truth</span>
                 <span><i className="legend-dot parameter-estimate" />Estimate</span>
-                <span>68% / 95% covariance</span>
+                <span>Sampling covariance (68% / 95% scales)</span>
                 </div>
               </div>
             </section>
@@ -1287,7 +1293,13 @@ export default function Home() {
               </div>
               <ParameterPlot result={result} axes={parameterAxes} />
               <p className="covariance-note">
-                Locked equal scales · press Fit axes to reframe · 68% / 95%
+                Configured σ² · Gaussian 68% / 95% scales · locked axes.
+                {result.config.l1 > 0 || result.points.some(point => point.training && (point.outlier || point.manual))
+                  ? " Clean-model ridge reference only: L1 or added/outlier training points are not covered by this covariance model."
+                  : " Sampling spread around the estimate; bias is not included."}
+                {result.config.l1 > 0 || result.config.l2 > 0
+                  ? " Not confidence regions for the ground truth under regularization."
+                  : ""}
               </p>
             </div>
           </div>

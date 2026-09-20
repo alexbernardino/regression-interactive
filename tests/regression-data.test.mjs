@@ -13,6 +13,38 @@ const { createInitialLabState, updateLabState, evaluate } = context.api;
 const snapshot = value => JSON.stringify(value);
 const subset = (state, training) => state.result.points.filter(p => p.training === training);
 
+test("ridge covariance shrinks at fixed data despite increasing fit residuals", () => {
+  let state = createInitialLabState();
+  const initial = state;
+  const training = subset(initial, true);
+  const n = training.length;
+  const mean = training.reduce((s, p) => s + p.x, 0) / n;
+  const sxx = training.reduce((s, p) => s + (p.x - mean) ** 2, 0);
+  let previous = initial.result.covariance;
+  for (const lambda of [0.1, 1, 10, 100, 1e6]) {
+    state = updateLabState(state, { type: "set-value", key: "l2", value: lambda });
+    assert.equal(snapshot(state.result.points), snapshot(initial.result.points));
+    const c = state.result.covariance;
+    const expected = state.config.noiseVariance * sxx / (sxx + n * lambda) ** 2;
+    assert.ok(Math.abs(c.slopeVariance - expected) < 1e-12);
+    assert.ok(c.slopeVariance < previous.slopeVariance);
+    assert.ok(c.interceptVariance <= previous.interceptVariance);
+    assert.ok(Math.abs(c.slopeIntercept + mean * c.slopeVariance) < 1e-12);
+    assert.equal(c.noiseVariance, initial.config.noiseVariance);
+    previous = c;
+  }
+  assert.ok(state.result.rmse > initial.result.rmse);
+  assert.ok(Math.abs(previous.interceptVariance - initial.config.noiseVariance / n) < 1e-9);
+});
+
+test("zero generating noise gives zero sampling covariance even with ridge bias", () => {
+  let state = updateLabState(createInitialLabState(), { type: "set-value", key: "noiseVariance", value: 0 });
+  state = updateLabState(state, { type: "set-value", key: "l2", value: 10 });
+  assert.ok(state.result.rmse > 0);
+  assert.equal(state.result.covariance.slopeVariance, 0);
+  assert.equal(state.result.covariance.interceptVariance, 0);
+});
+
 test("resampling test preserves training, coefficients and covariance exactly", () => {
   const before = createInitialLabState();
   const after = updateLabState(before, { type: "resample", subset: "test" });
