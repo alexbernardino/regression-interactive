@@ -1001,6 +1001,9 @@ export default function Home() {
           <span>
             MACHINE LEARNING
             <small>Regression interactive demo</small>
+            <time className="version-stamp" dateTime={process.env.NEXT_PUBLIC_BUILD_TIME}>
+              Version: {process.env.NEXT_PUBLIC_BUILD_TIME?.replace("T", " ").slice(0, 19) ?? "development"} UTC
+            </time>
           </span>
         </a>
         <div className="header-context">

@@ -23,4 +23,11 @@ const nextConfig: NextConfig = isGitHubPagesBuild
     }
   : {};
 
+// Capture once at build/server startup, never during component rendering.
+process.env.NEXT_PUBLIC_BUILD_TIME ??= new Date().toISOString();
+nextConfig.env = {
+  ...nextConfig.env,
+  NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME,
+};
+
 export default nextConfig;

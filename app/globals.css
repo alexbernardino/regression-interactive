@@ -115,6 +115,16 @@ main {
   gap: 12px;
 }
 
+.brand .version-stamp {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
 .header-context strong {
   font-size: 14px;
   letter-spacing: -0.02em;
